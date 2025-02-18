@@ -1,6 +1,6 @@
 
 import { useState, useRef, useEffect } from 'react';
-import { Video, Pause, Play, Rewind, FastForward, Circle } from 'lucide-react';
+import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from "sonner";
 
@@ -10,6 +10,8 @@ const VideoRecorder = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [permissionError, setPermissionError] = useState(false);
+  const [hasRecording, setHasRecording] = useState(false);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -19,6 +21,9 @@ const VideoRecorder = () => {
     startCamera();
     return () => {
       stopCamera();
+      if (recordedVideoUrl) {
+        URL.revokeObjectURL(recordedVideoUrl);
+      }
     };
   }, []);
 
@@ -60,7 +65,7 @@ const VideoRecorder = () => {
     } catch (err) {
       console.error('Error accessing camera:', err);
       setPermissionError(true);
-      setIsPlaying(false); // Reset playing state when camera access is denied
+      setIsPlaying(false);
       toast.error("Please allow camera access to record videos");
       
       if (err instanceof Error) {
@@ -104,15 +109,27 @@ const VideoRecorder = () => {
     mediaRecorder.onstop = () => {
       const blob = new Blob(chunks, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
+      if (recordedVideoUrl) {
+        URL.revokeObjectURL(recordedVideoUrl);
+      }
+      setRecordedVideoUrl(url);
+      setHasRecording(true);
       console.log('Recording finished:', url);
       setRecordingTime(0);
       toast.success("Recording saved successfully");
+      
+      // Switch to the recorded video
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        videoRef.current.src = url;
+      }
     };
 
     mediaRecorder.start();
     mediaRecorderRef.current = mediaRecorder;
     setIsRecording(true);
     setIsPaused(false);
+    setHasRecording(false);
     toast.success("Recording started");
   };
 
@@ -125,12 +142,44 @@ const VideoRecorder = () => {
   };
 
   const togglePlayPause = () => {
-    if (!streamRef.current || permissionError) return;
+    if (!hasRecording || !videoRef.current) return;
+    
+    if (isPlaying) {
+      videoRef.current.pause();
+    } else {
+      videoRef.current.play();
+    }
     setIsPlaying(!isPlaying);
+  };
+
+  const deleteRecording = () => {
+    if (recordedVideoUrl) {
+      URL.revokeObjectURL(recordedVideoUrl);
+      setRecordedVideoUrl(null);
+      setHasRecording(false);
+      // Switch back to camera feed
+      if (videoRef.current) {
+        videoRef.current.src = '';
+        videoRef.current.srcObject = streamRef.current;
+      }
+      toast.success("Recording deleted");
+    }
+  };
+
+  const goBack = () => {
+    window.history.back();
   };
 
   return (
     <div className="fixed inset-0 bg-background">
+      {/* Back Button */}
+      <button
+        onClick={goBack}
+        className="absolute top-6 left-6 z-10 p-2 rounded-full bg-secondary/50 hover:bg-secondary/80 transition-colors"
+      >
+        <ArrowLeft size={24} className="text-white" />
+      </button>
+
       {/* Corner Lines */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 w-12 h-[2px] bg-white"></div>
@@ -169,59 +218,63 @@ const VideoRecorder = () => {
       {isRecording && (
         <div className="absolute top-6 right-16 flex items-center gap-2">
           <Circle size={12} className="text-red-500 animate-pulse" fill="currentColor" />
-          <span className="font-mono text-red-500">REC {formatTime(recordingTime)}</span>
+          <span className="font-mono text-red-500 text-xl font-bold">REC {formatTime(recordingTime)}</span>
         </div>
       )}
 
       {/* Control Panel */}
       <div className="absolute bottom-0 left-0 right-0 p-6 glassmorphism">
-        <div className="flex justify-center items-center gap-6">
-          {!isRecording && (
-            <>
-              <button
-                className={cn(
-                  "p-3 rounded-full transition-all duration-300",
-                  permissionError ? "opacity-50 cursor-not-allowed bg-secondary text-muted" : "bg-secondary text-muted hover:text-foreground"
-                )}
-                onClick={() => !permissionError && videoRef.current?.currentTime && (videoRef.current.currentTime -= 5)}
-                disabled={permissionError}
-              >
-                <Rewind size={24} />
-              </button>
-
-              <button
-                onClick={togglePlayPause}
-                disabled={permissionError}
-                className={cn(
-                  "p-3 rounded-full transition-all duration-300",
-                  permissionError ? "opacity-50 cursor-not-allowed bg-secondary text-muted" : "bg-secondary text-muted hover:text-foreground"
-                )}
-              >
-                {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-              </button>
-
-              <button
-                className={cn(
-                  "p-3 rounded-full transition-all duration-300",
-                  permissionError ? "opacity-50 cursor-not-allowed bg-secondary text-muted" : "bg-secondary text-muted hover:text-foreground"
-                )}
-                onClick={() => !permissionError && videoRef.current?.currentTime && (videoRef.current.currentTime += 5)}
-                disabled={permissionError}
-              >
-                <FastForward size={24} />
-              </button>
-            </>
+        <div className="flex justify-between items-center">
+          {/* Delete Button */}
+          {hasRecording && !isRecording && (
+            <button
+              onClick={deleteRecording}
+              className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
+            >
+              <Trash size={24} />
+            </button>
           )}
 
-          <button
-            onClick={isRecording ? stopRecording : startRecording}
-            className={cn(
-              "p-3 rounded-full transition-all duration-300",
-              isRecording ? "bg-destructive text-destructive-foreground" : "bg-accent text-accent-foreground"
+          {/* Center Controls */}
+          <div className="flex justify-center items-center gap-6 flex-1">
+            {(!isRecording && hasRecording) && (
+              <>
+                <button
+                  className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
+                  onClick={() => videoRef.current && (videoRef.current.currentTime -= 5)}
+                >
+                  <Rewind size={24} />
+                </button>
+
+                <button
+                  onClick={togglePlayPause}
+                  className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
+                >
+                  {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                </button>
+
+                <button
+                  className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
+                  onClick={() => videoRef.current && (videoRef.current.currentTime += 5)}
+                >
+                  <FastForward size={24} />
+                </button>
+              </>
             )}
-          >
-            <Video size={24} />
-          </button>
+
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              className={cn(
+                "p-3 rounded-full transition-all duration-300",
+                isRecording ? "bg-destructive text-destructive-foreground" : "bg-accent text-accent-foreground"
+              )}
+            >
+              <Video size={24} />
+            </button>
+          </div>
+
+          {/* Empty div for spacing */}
+          <div className="w-[48px]" />
         </div>
       </div>
     </div>
