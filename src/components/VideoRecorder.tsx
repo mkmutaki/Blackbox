@@ -1,18 +1,27 @@
 
 import { useState, useRef, useEffect } from 'react';
-import { Camera, CameraOff, Video, Pause, Play, Rewind, FastForward, Circle } from 'lucide-react';
+import { Video, Pause, Play, Rewind, FastForward, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const VideoRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    // Start camera automatically when component mounts
+    startCamera();
+    
+    // Cleanup when component unmounts
+    return () => {
+      stopCamera();
+    };
+  }, []);
 
   useEffect(() => {
     if (isRecording && !isPaused) {
@@ -39,7 +48,6 @@ const VideoRecorder = () => {
         videoRef.current.srcObject = stream;
       }
       streamRef.current = stream;
-      setIsCameraOn(true);
     } catch (err) {
       console.error('Error accessing camera:', err);
     }
@@ -52,15 +60,6 @@ const VideoRecorder = () => {
         videoRef.current.srcObject = null;
       }
       streamRef.current = null;
-      setIsCameraOn(false);
-    }
-  };
-
-  const toggleCamera = () => {
-    if (isCameraOn) {
-      stopCamera();
-    } else {
-      startCamera();
     }
   };
 
@@ -130,17 +129,7 @@ const VideoRecorder = () => {
       {/* Control Panel */}
       <div className="absolute bottom-0 left-0 right-0 p-6 glassmorphism">
         <div className="flex justify-center items-center gap-6">
-          <button
-            onClick={toggleCamera}
-            className={cn(
-              "p-3 rounded-full transition-all duration-300",
-              isCameraOn ? "bg-accent text-accent-foreground" : "bg-secondary text-muted hover:text-foreground"
-            )}
-          >
-            {isCameraOn ? <CameraOff size={24} /> : <Camera size={24} />}
-          </button>
-
-          {!isRecording && isCameraOn && (
+          {!isRecording && (
             <>
               <button
                 className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
@@ -167,11 +156,9 @@ const VideoRecorder = () => {
 
           <button
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={!isCameraOn}
             className={cn(
               "p-3 rounded-full transition-all duration-300",
-              isRecording ? "bg-destructive text-destructive-foreground" : "bg-accent text-accent-foreground",
-              !isCameraOn && "opacity-50 cursor-not-allowed"
+              isRecording ? "bg-destructive text-destructive-foreground" : "bg-accent text-accent-foreground"
             )}
           >
             <Video size={24} />
