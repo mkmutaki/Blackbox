@@ -2,22 +2,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from "sonner";
 
 const VideoRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [permissionError, setPermissionError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
-    // Start camera automatically when component mounts
     startCamera();
-    
-    // Cleanup when component unmounts
     return () => {
       stopCamera();
     };
@@ -43,13 +42,35 @@ const VideoRecorder = () => {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setPermissionError(false);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 }
+        },
+        audio: true
+      });
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
       streamRef.current = stream;
+      toast.success("Camera access granted");
     } catch (err) {
       console.error('Error accessing camera:', err);
+      setPermissionError(true);
+      toast.error("Please allow camera access to record videos");
+      
+      if (err instanceof Error) {
+        if (err.name === "NotAllowedError") {
+          toast.error("Camera permission was denied. Please enable it in your browser settings.");
+        } else if (err.name === "NotFoundError") {
+          toast.error("No camera found. Please connect a camera and try again.");
+        } else {
+          toast.error("Error accessing camera. Please try again.");
+        }
+      }
     }
   };
 
@@ -64,7 +85,11 @@ const VideoRecorder = () => {
   };
 
   const startRecording = () => {
-    if (!streamRef.current) return;
+    if (!streamRef.current) {
+      toast.error("No camera access. Please allow camera access and try again.");
+      startCamera();
+      return;
+    }
 
     const mediaRecorder = new MediaRecorder(streamRef.current);
     const chunks: BlobPart[] = [];
@@ -80,12 +105,14 @@ const VideoRecorder = () => {
       const url = URL.createObjectURL(blob);
       console.log('Recording finished:', url);
       setRecordingTime(0);
+      toast.success("Recording saved successfully");
     };
 
     mediaRecorder.start();
     mediaRecorderRef.current = mediaRecorder;
     setIsRecording(true);
     setIsPaused(false);
+    toast.success("Recording started");
   };
 
   const stopRecording = () => {
@@ -110,13 +137,27 @@ const VideoRecorder = () => {
         <div className="absolute bottom-0 right-0 w-[2px] h-12 bg-white"></div>
       </div>
 
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="w-full h-full object-cover"
-      />
+      {permissionError ? (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <p className="text-muted text-lg font-mono">Camera access needed</p>
+            <button
+              onClick={startCamera}
+              className="px-4 py-2 bg-accent text-accent-foreground rounded-md font-mono"
+            >
+              Grant Access
+            </button>
+          </div>
+        </div>
+      ) : (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-full object-cover"
+        />
+      )}
 
       {/* Recording Indicator */}
       {isRecording && (
