@@ -60,6 +60,7 @@ const VideoRecorder = () => {
     } catch (err) {
       console.error('Error accessing camera:', err);
       setPermissionError(true);
+      setIsPlaying(false); // Reset playing state when camera access is denied
       toast.error("Please allow camera access to record videos");
       
       if (err instanceof Error) {
@@ -123,6 +124,11 @@ const VideoRecorder = () => {
     }
   };
 
+  const togglePlayPause = () => {
+    if (!streamRef.current || permissionError) return;
+    setIsPlaying(!isPlaying);
+  };
+
   return (
     <div className="fixed inset-0 bg-background">
       {/* Corner Lines */}
@@ -173,22 +179,34 @@ const VideoRecorder = () => {
           {!isRecording && (
             <>
               <button
-                className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
-                onClick={() => videoRef.current?.currentTime && (videoRef.current.currentTime -= 5)}
+                className={cn(
+                  "p-3 rounded-full transition-all duration-300",
+                  permissionError ? "opacity-50 cursor-not-allowed bg-secondary text-muted" : "bg-secondary text-muted hover:text-foreground"
+                )}
+                onClick={() => !permissionError && videoRef.current?.currentTime && (videoRef.current.currentTime -= 5)}
+                disabled={permissionError}
               >
                 <Rewind size={24} />
               </button>
 
               <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
+                onClick={togglePlayPause}
+                disabled={permissionError}
+                className={cn(
+                  "p-3 rounded-full transition-all duration-300",
+                  permissionError ? "opacity-50 cursor-not-allowed bg-secondary text-muted" : "bg-secondary text-muted hover:text-foreground"
+                )}
               >
                 {isPlaying ? <Pause size={24} /> : <Play size={24} />}
               </button>
 
               <button
-                className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
-                onClick={() => videoRef.current?.currentTime && (videoRef.current.currentTime += 5)}
+                className={cn(
+                  "p-3 rounded-full transition-all duration-300",
+                  permissionError ? "opacity-50 cursor-not-allowed bg-secondary text-muted" : "bg-secondary text-muted hover:text-foreground"
+                )}
+                onClick={() => !permissionError && videoRef.current?.currentTime && (videoRef.current.currentTime += 5)}
+                disabled={permissionError}
               >
                 <FastForward size={24} />
               </button>
