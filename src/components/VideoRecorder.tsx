@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -170,6 +169,18 @@ const VideoRecorder = () => {
     window.history.back();
   };
 
+  const handleEnded = () => {
+    setIsPlaying(false);
+  };
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-background">
       {/* Back Button */}
@@ -182,14 +193,14 @@ const VideoRecorder = () => {
 
       {/* Corner Lines */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 w-12 h-[2px] bg-white"></div>
-        <div className="absolute top-0 left-0 w-[2px] h-12 bg-white"></div>
-        <div className="absolute top-0 right-0 w-12 h-[2px] bg-white"></div>
-        <div className="absolute top-0 right-0 w-[2px] h-12 bg-white"></div>
-        <div className="absolute bottom-0 left-0 w-12 h-[2px] bg-white"></div>
-        <div className="absolute bottom-0 left-0 w-[2px] h-12 bg-white"></div>
-        <div className="absolute bottom-0 right-0 w-12 h-[2px] bg-white"></div>
-        <div className="absolute bottom-0 right-0 w-[2px] h-12 bg-white"></div>
+        <div className="absolute top-6 left-6 w-12 h-[2px] border-solid border-white border-2"></div>
+        <div className="absolute top-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
+        <div className="absolute top-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
+        <div className="absolute top-6 right-6 w-[2px] h-12 border-solid border-white border-2"></div>
+        <div className="absolute mb-24 bottom-6 left-6 w-12 h-[2px] border-solid border-white border-2"></div>
+        <div className="absolute mb-24 bottom-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
+        <div className="absolute mb-24 bottom-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
+        <div className="absolute mb-24 bottom-6 right-6 w-[2px] h-12 border-solid border-white border-2"></div>
       </div>
 
       {permissionError ? (
@@ -211,6 +222,10 @@ const VideoRecorder = () => {
           playsInline
           muted
           className="w-full h-full object-cover"
+          onEnded={handleEnded}
+          onPlay={handlePlay}
+          onPause={handlePause}
+          controls={false}
         />
       )}
 
