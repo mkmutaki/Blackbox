@@ -233,7 +233,7 @@ const VideoRecorder = () => {
       </button>
 
       {/* Corner Lines */}
-      <div className="absolute inset-0 pointer-events-none">
+      {/* <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-6 left-6 w-12 h-[2px] border-solid border-white border-2"></div>
         <div className="absolute top-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
         <div className="absolute top-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
@@ -242,7 +242,7 @@ const VideoRecorder = () => {
         <div className="absolute mb-24 bottom-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
         <div className="absolute mb-24 bottom-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
         <div className="absolute mb-24 bottom-6 right-6 w-[2px] h-12 border-solid border-white border-2"></div>
-      </div>
+      </div> */}
 
       {permissionError ? (
         <div className="absolute inset-0 flex items-center justify-center">
