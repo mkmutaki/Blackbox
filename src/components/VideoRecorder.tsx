@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,44 +16,36 @@ const VideoRecorder = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
 
-  // Add new state for mission data
-  const [missionDay, setMissionDay] = useState(26);
+  // Add new state for mission data and dynamic connection ID
+  const [missionDay, setMissionDay] = useState(0);
   const [currentTime, setCurrentTime] = useState("");
   const [logNumber, setLogNumber] = useState("009");
+  const [randomDigits, setRandomDigits] = useState("0000");
 
-  // Update time every second
+  // Calculate current SOL (mission day) based on current date
+  useEffect(() => {
+    const startDate = new Date('2024-01-01'); // You can adjust this start date
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    setMissionDay(diffDays);
+  }, []);
+
+  // Update time and random digits every second
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
       const hours = now.getHours().toString().padStart(2, '0');
       const minutes = now.getMinutes().toString().padStart(2, '0');
       setCurrentTime(`${hours}${minutes}`);
+      
+      // Generate random 4-digit number for the connection ID
+      const randomNumber = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      setRandomDigits(randomNumber);
     }, 1000);
 
     return () => clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    startCamera();
-    return () => {
-      stopCamera();
-      if (recordedVideoUrl) {
-        URL.revokeObjectURL(recordedVideoUrl);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isRecording && !isPaused) {
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
-    } else {
-      clearInterval(timerRef.current);
-    }
-
-    return () => clearInterval(timerRef.current);
-  }, [isRecording, isPaused]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -228,7 +219,7 @@ const VideoRecorder = () => {
         <div className="text-sm text-muted flex items-center">
           CONNECTED-
           <span>{new Date().toISOString().replace(/[-:]/g, '').slice(0, 10)}</span>
-          <span className="animate-pulse">{new Date().toISOString().replace(/[-:]/g, '').slice(10, 14)}</span>
+          <span>{randomDigits}</span>
         </div>
       </div>
 
@@ -239,18 +230,6 @@ const VideoRecorder = () => {
       >
         <ArrowLeft size={24} className="text-white" />
       </button>
-
-      {/* Corner Lines */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-6 left-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute top-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
-        <div className="absolute top-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute top-6 right-6 w-[2px] h-12 border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 left-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 right-6 w-[2px] h-12 border-solid border-white border-2"></div>
-      </div>
 
       {permissionError ? (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -286,60 +265,51 @@ const VideoRecorder = () => {
         </div>
       )}
 
-      {/* Control Panel */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 glassmorphism">
-        <div className="flex justify-between items-center">
-          {/* Delete Button */}
-          {hasRecording && !isRecording && (
+      {/* Floating Record Button */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6">
+        {(!isRecording && hasRecording) && (
+          <>
             <button
-              onClick={deleteRecording}
-              className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
+              className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
+              onClick={() => videoRef.current && (videoRef.current.currentTime -= 5)}
             >
-              <Trash size={24} />
+              <Rewind size={24} />
             </button>
+
+            <button
+              onClick={togglePlayPause}
+              className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
+            >
+              {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+            </button>
+
+            <button
+              className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
+              onClick={() => videoRef.current && (videoRef.current.currentTime += 5)}
+            >
+              <FastForward size={24} />
+            </button>
+          </>
+        )}
+
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          className={cn(
+            "p-3 rounded-full transition-all duration-300",
+            isRecording ? "bg-destructive/50 text-destructive-foreground" : "bg-accent/50 text-accent-foreground"
           )}
+        >
+          <Video size={24} />
+        </button>
 
-          {/* Center Controls */}
-          <div className="flex justify-center items-center gap-6 flex-1">
-            {(!isRecording && hasRecording) && (
-              <>
-                <button
-                  className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
-                  onClick={() => videoRef.current && (videoRef.current.currentTime -= 5)}
-                >
-                  <Rewind size={24} />
-                </button>
-
-                <button
-                  onClick={togglePlayPause}
-                  className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
-                >
-                  {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-                </button>
-
-                <button
-                  className="p-3 rounded-full bg-secondary text-muted hover:text-foreground transition-all duration-300"
-                  onClick={() => videoRef.current && (videoRef.current.currentTime += 5)}
-                >
-                  <FastForward size={24} />
-                </button>
-              </>
-            )}
-
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={cn(
-                "p-3 rounded-full transition-all duration-300",
-                isRecording ? "bg-destructive text-destructive-foreground" : "bg-accent text-accent-foreground"
-              )}
-            >
-              <Video size={24} />
-            </button>
-          </div>
-
-          {/* Empty div for spacing */}
-          <div className="w-[48px]" />
-        </div>
+        {hasRecording && !isRecording && (
+          <button
+            onClick={deleteRecording}
+            className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
+          >
+            <Trash size={24} />
+          </button>
+        )}
       </div>
     </div>
   );
