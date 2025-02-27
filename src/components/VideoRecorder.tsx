@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,7 +18,7 @@ const VideoRecorder = () => {
   const timerRef = useRef<NodeJS.Timeout>();
 
   // Add new state for mission data
-  const [missionDay, setMissionDay] = useState(19);
+  const [missionDay, setMissionDay] = useState(26);
   const [currentTime, setCurrentTime] = useState("");
   const [logNumber, setLogNumber] = useState("009");
 
@@ -27,7 +28,7 @@ const VideoRecorder = () => {
       const now = new Date();
       const hours = now.getHours().toString().padStart(2, '0');
       const minutes = now.getMinutes().toString().padStart(2, '0');
-      setCurrentTime(`${hours}:${minutes}`);
+      setCurrentTime(`${hours}${minutes}`);
     }, 1000);
 
     return () => clearInterval(timer);
@@ -201,27 +202,34 @@ const VideoRecorder = () => {
   return (
     <div className="fixed inset-0 bg-background">
       {/* Vertical Border Lines */}
-      <div className="absolute inset-y-0 left-12 w-[2px] bg-white/20" />
-      <div className="absolute inset-y-0 right-12 w-[2px] bg-white/20" />
+      <div className="absolute inset-y-0 left-12 w-[2px] bg-white/20 my-24" />
+      <div className="absolute inset-y-0 right-12 w-[2px] bg-white/20 my-24" />
 
       {/* Mission Info - Top Left */}
       <div className="absolute top-6 left-16 space-y-1 font-mono z-10">
-        <div className="text-sm text-muted">MISSION DAY</div>
-        <div className="text-xl font-bold bg-secondary/50 px-3 py-1 rounded">
+        <div className="text-lg text-muted">MISSION DAY</div>
+        <div className="text-3xl font-bold bg-secondary/50 px-3 py-1 rounded">
           SOL {missionDay}
         </div>
       </div>
 
       {/* Mission Info - Top Right */}
       <div className="absolute top-6 right-16 text-right font-mono z-10">
-        <div className="text-sm text-muted">TIME {currentTime}</div>
-        <div className="text-sm text-muted">LOG ENTRY {'>'} WATNEY #{logNumber}</div>
+        <div className="text-xl text-muted">
+          TIME {currentTime.slice(0, 2)}
+          <span className="animate-pulse">:</span>
+          {currentTime.slice(2, 4)}
+        </div>
+        <div className="text-lg text-muted">LOG ENTRY {'>'} WATNEY #{logNumber}</div>
       </div>
 
-      {/* Location Info - Bottom Left */}
+      {/* Connection ID - Bottom */}
       <div className="absolute bottom-28 left-16 font-mono z-10">
-        <div className="text-sm">HAB {'>'} BUNKS</div>
-        <div className="text-xs text-muted mt-1">CONNECTED-{new Date().toISOString().replace(/[-:]/g, '').slice(0, 14)}</div>
+        <div className="text-sm text-muted flex items-center">
+          CONNECTED-
+          <span>{new Date().toISOString().replace(/[-:]/g, '').slice(0, 10)}</span>
+          <span className="animate-pulse">{new Date().toISOString().replace(/[-:]/g, '').slice(10, 14)}</span>
+        </div>
       </div>
 
       {/* Back Button */}
