@@ -81,5 +81,13 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@designbycode/tailwindcss-text-shadow")({
+      shadowColor: "rgba(0, 0, 0, 0)",
+      shadowBlur: "2px",
+      shadowOffsetX: "1px",
+      shadowOffsetY: "1px",
+  }),
+  ]
 } satisfies Config;
