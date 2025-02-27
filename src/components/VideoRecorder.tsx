@@ -203,12 +203,12 @@ const VideoRecorder = () => {
       {/* Mission Info - Top Right */}
       <div className="absolute top-6 right-16 text-right font-mono z-10">
         <div className="text-sm text-muted">TIME {currentTime}</div>
-        <div className="text-sm text-muted">LOG ENTRY > WATNEY #{logNumber}</div>
+        <div className="text-sm text-muted">LOG ENTRY {'>'} WATNEY #{logNumber}</div>
       </div>
 
       {/* Location Info - Bottom Left */}
       <div className="absolute bottom-28 left-16 font-mono z-10">
-        <div className="text-sm">HAB > BUNKS</div>
+        <div className="text-sm">HAB {'>'} BUNKS</div>
         <div className="text-xs text-muted mt-1">CONNECTED-{new Date().toISOString().replace(/[-:]/g, '').slice(0, 14)}</div>
       </div>
 
