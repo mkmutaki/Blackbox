@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft } from 'lucide-react';
+import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ const VideoRecorder = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Add new state for mission data and dynamic connection ID
   const [missionDay, setMissionDay] = useState(0);
@@ -24,11 +25,11 @@ const VideoRecorder = () => {
 
   // Calculate current SOL (mission day) based on current date
   useEffect(() => {
-    const startDate = new Date('2024-01-01'); // You can adjust this start date
+    const startDate = new Date('2025-01-01'); // Adjust this start date to the mission start date
     const today = new Date();
-    const diffTime = Math.abs(today.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    setMissionDay(diffDays);
+    const diffTime = today.getTime() - startDate.getTime(); 
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+    setMissionDay(diffDays + 1); // Adding 1 to include the start day as day 1
   }, []);
 
   // Update time and random digits every second
@@ -139,6 +140,11 @@ const VideoRecorder = () => {
     setIsPaused(false);
     setHasRecording(false);
     toast.success("Recording started");
+
+    // Start recording time interval
+    recordingIntervalRef.current = setInterval(() => {
+      setRecordingTime(prevTime => prevTime + 1);
+    }, 1000);
   };
 
   const stopRecording = () => {
@@ -146,6 +152,10 @@ const VideoRecorder = () => {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
     }
   };
 
@@ -158,6 +168,31 @@ const VideoRecorder = () => {
       videoRef.current.play();
     }
     setIsPlaying(!isPlaying);
+  };
+
+  const saveRecording = async () => {
+    if (recordedVideoUrl) {
+      try {
+        const response = await fetch(recordedVideoUrl);
+        const blob = await response.blob();
+        const formData = new FormData();
+        formData.append('file', blob, `recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
+
+        const uploadResponse = await fetch('YOUR_API_ENDPOINT', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (uploadResponse.ok) {
+          toast.success("Recording saved to database");
+        } else {
+          toast.error("Failed to save recording to database");
+        }
+      } catch (error) {
+        console.error('Error saving recording:', error);
+        toast.error("Error saving recording");
+      }
+    }
   };
 
   const deleteRecording = () => {
@@ -175,7 +210,11 @@ const VideoRecorder = () => {
   };
 
   const goBack = () => {
-    window.history.back();
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.href = '/'; // Redirect to home or a fallback page if no history
+    }
   };
 
   const handleEnded = () => {
@@ -193,60 +232,38 @@ const VideoRecorder = () => {
   return (
     <div className="fixed inset-0 bg-background">
       {/* Vertical Border Lines */}
-      <div className="absolute inset-y-0 left-12 w-[2px] bg-white/20 my-24" />
-      <div className="absolute inset-y-0 right-12 w-[2px] bg-white/20 my-24" />
+      <div className="absolute inset-y-0 left-12 w-[2px] bg-white/60 my-[30px]" />
+      <div className="absolute inset-y-0 right-12 w-[2px] bg-white/60 my-[30px]" />
 
       {/* Mission Info - Top Left */}
       <div className="absolute top-6 left-16 space-y-1 font-mono z-10">
-        <div className="text-lg text-muted">MISSION DAY</div>
-        <div className="text-3xl font-bold bg-secondary/50 px-3 py-1 rounded">
-          SOL {missionDay}
-        </div>
+        <div className="text-lg text-grey-500 text-shadow text-shadow-white">MISSION DAY</div>
+        <div className="text-3xl font-bold bg-secondary/50 px-3 py-1 rounded text-shadow text-shadow-white">SOL {missionDay} </div>
       </div>
 
       {/* Mission Info - Top Right */}
       <div className="absolute top-6 right-16 text-right font-mono z-10">
-        <div className="text-xl text-muted">
+        <div className="mb-2 text-xl text-grey-500 text-shadow text-shadow-white">
           TIME {currentTime.slice(0, 2)}
-          <span className="animate-pulse">:</span>
+          <span className="animate-[pulse_1s_ease-in-out_infinite]">:</span>
           {currentTime.slice(2, 4)}
         </div>
-        <div className="text-lg text-muted">LOG ENTRY {'>'} WATNEY #{logNumber}</div>
+        <div className="text-lg text-grey-500 text-shadow text-shadow-white">LOG ENTRY {'>'} WATNEY #{logNumber}</div>
       </div>
 
       {/* Connection ID - Bottom */}
-      <div className="absolute bottom-28 left-16 font-mono z-10">
-        <div className="text-sm text-muted flex items-center">
+      <div className="absolute bottom-10 left-16 font-mono z-10">
+        <div className="text-sm text-grey-500 flex items-center text-shadow text-shadow-white">
           CONNECTED-
           <span>{new Date().toISOString().replace(/[-:]/g, '').slice(0, 10)}</span>
           <span>{randomDigits}</span>
         </div>
       </div>
 
-      {/* Back Button */}
-      <button
-        onClick={goBack}
-        className="absolute top-6 left-6 z-10 p-2 rounded-full bg-secondary/50 hover:bg-secondary/80 transition-colors"
-      >
-        <ArrowLeft size={24} className="text-white" />
-      </button>
-
-      {/* Corner Lines */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-6 left-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute top-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
-        <div className="absolute top-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute top-6 right-6 w-[2px] h-12 border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 left-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 left-6 w-[2px] h-12 border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 right-6 w-12 h-[2px] border-solid border-white border-2"></div>
-        <div className="absolute mb-24 bottom-6 right-6 w-[2px] h-12 border-solid border-white border-2"></div>
-      </div>
-
       {permissionError ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <p className="text-muted text-lg font-mono">Camera access needed</p>
+            <p className="text-grey-500 text-lg font-mono">Camera access needed</p>
             <button
               onClick={startCamera}
               className="px-4 py-2 bg-accent text-accent-foreground rounded-md font-mono"
@@ -269,16 +286,30 @@ const VideoRecorder = () => {
         />
       )}
 
+
+      {/* Back Button */}
+      {!hasRecording && (
+        <button
+          onClick={goBack}
+          className="absolute bottom-[31px] left-[44%] -translate-x-1/2 flex items-center p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
+        >
+          <ArrowLeft size={24} className="text-white" />
+        </button>
+      )}
+
       {/* Recording Indicator */}
       {isRecording && (
-        <div className="absolute top-6 right-16 flex items-center gap-2">
+        <div className="absolute top-6 right-48 flex items-center gap-2">
           <Circle size={12} className="text-red-500 animate-pulse" fill="currentColor" />
           <span className="font-mono text-red-500 text-xl font-bold">REC {formatTime(recordingTime)}</span>
         </div>
       )}
 
+      
+
       {/* Floating Record Button */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6">
+      
         {(!isRecording && hasRecording) && (
           <>
             <button
@@ -315,12 +346,21 @@ const VideoRecorder = () => {
         </button>
 
         {hasRecording && !isRecording && (
-          <button
-            onClick={deleteRecording}
-            className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
-          >
-            <Trash size={24} />
-          </button>
+            <> 
+            <button
+              onClick={saveRecording}
+              className="p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
+            >
+              <Save size={24} />
+            </button>
+            
+            <button
+              onClick={deleteRecording}
+              className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
+            >
+              <Trash size={24} />
+            </button>
+            </>
         )}
       </div>
     </div>
