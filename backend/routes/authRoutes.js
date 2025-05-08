@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { register, login, getCurrentUser } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
+const cors = require('cors');
+
+router.options('/register', cors()) // Handle preflight for register specifically
 
 // @route   POST /api/auth/register
 // @desc    Register a new user
