@@ -2,15 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from "sonner";
-import { useAuth } from '@/context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const VideoRecorder = () => {
-  const { token } = useAuth();
-  const navigate = useNavigate();
-  
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -18,59 +11,17 @@ const VideoRecorder = () => {
   const [permissionError, setPermissionError] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const encryptionKeyRef = useRef<CryptoKey | null>(null);
-  const ivRef = useRef<Uint8Array | null>(null);
 
   // Add new state for mission data and dynamic connection ID
   const [missionDay, setMissionDay] = useState(0);
   const [currentTime, setCurrentTime] = useState("");
   const [logNumber, setLogNumber] = useState("009");
   const [randomDigits, setRandomDigits] = useState("0000");
-
-  // Initialize encryption key on component mount
-  useEffect(() => {
-    const initEncryption = async () => {
-      try {
-        // Generate a random encryption key
-        const key = await window.crypto.subtle.generateKey(
-          {
-            name: 'AES-GCM',
-            length: 256
-          },
-          true, // extractable
-          ['encrypt', 'decrypt']
-        );
-        
-        encryptionKeyRef.current = key;
-        
-        // Generate a random initialization vector
-        ivRef.current = window.crypto.getRandomValues(new Uint8Array(12));
-        
-        console.log('Encryption initialized');
-      } catch (error) {
-        console.error('Failed to initialize encryption:', error);
-        toast.error('Failed to initialize encryption');
-      }
-    };
-    
-    initEncryption();
-    
-    // Start camera on component mount
-    startCamera();
-    
-    // Clean up on unmount
-    return () => {
-      stopCamera();
-    };
-  }, []);
 
   // Calculate current SOL (mission day) based on current date
   useEffect(() => {
@@ -166,13 +117,13 @@ const VideoRecorder = () => {
 
     mediaRecorder.onstop = () => {
       const blob = new Blob(chunks, { type: 'video/webm' });
-      setRecordedBlob(blob);
       const url = URL.createObjectURL(blob);
       if (recordedVideoUrl) {
         URL.revokeObjectURL(recordedVideoUrl);
       }
       setRecordedVideoUrl(url);
       setHasRecording(true);
+      console.log('Recording finished:', url);
       setRecordingTime(0);
       toast.success("Recording saved successfully");
       
@@ -219,91 +170,28 @@ const VideoRecorder = () => {
     setIsPlaying(!isPlaying);
   };
 
-  // Function to encrypt video blob
-  const encryptBlob = async (blob: Blob): Promise<{ encryptedData: ArrayBuffer; iv: Uint8Array; jwk: JsonWebKey }> => {
-    if (!encryptionKeyRef.current || !ivRef.current) {
-      throw new Error('Encryption not initialized');
-    }
-
-    try {
-      // Convert blob to ArrayBuffer
-      const arrayBuffer = await blob.arrayBuffer();
-
-      // Encrypt the video data
-      const encryptedData = await window.crypto.subtle.encrypt(
-        {
-          name: 'AES-GCM',
-          iv: ivRef.current,
-          tagLength: 128
-        },
-        encryptionKeyRef.current,
-        arrayBuffer
-      );
-
-      // Export the key as JWK (JSON Web Key)
-      const jwk = await window.crypto.subtle.exportKey('jwk', encryptionKeyRef.current);
-
-      return {
-        encryptedData,
-        iv: ivRef.current,
-        jwk
-      };
-    } catch (error) {
-      console.error('Encryption error:', error);
-      throw new Error('Failed to encrypt video');
-    }
-  };
-
   const saveRecording = async () => {
-    if (!recordedBlob) {
-      toast.error("No recording to save");
-      return;
-    }
+    if (recordedVideoUrl) {
+      try {
+        const response = await fetch(recordedVideoUrl);
+        const blob = await response.blob();
+        const formData = new FormData();
+        formData.append('file', blob, `recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
 
-    try {
-      setIsUploading(true);
-      toast.info("Encrypting video...");
+        const uploadResponse = await fetch('YOUR_API_ENDPOINT', {
+          method: 'POST',
+          body: formData,
+        });
 
-      // Encrypt the video
-      const { encryptedData, iv, jwk } = await encryptBlob(recordedBlob);
-      
-      // Convert the encrypted data to blob
-      const encryptedBlob = new Blob([encryptedData], { type: 'application/octet-stream' });
-
-      // Create a FormData object for upload
-      const formData = new FormData();
-      formData.append('file', encryptedBlob, `recording_${Date.now()}.encrypted`);
-      formData.append('iv', Array.from(iv).toString());
-      formData.append('jwk', JSON.stringify(jwk));
-      formData.append('title', `SOL ${missionDay} LOG #${logNumber}`);
-      formData.append('missionDay', missionDay.toString());
-      formData.append('entryNumber', logNumber);
-
-      toast.info("Uploading encrypted video...");
-
-      // Upload to server
-      const response = await fetch(`${API_URL}/videos`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        if (uploadResponse.ok) {
+          toast.success("Recording saved to database");
+        } else {
+          toast.error("Failed to save recording to database");
+        }
+      } catch (error) {
+        console.error('Error saving recording:', error);
+        toast.error("Error saving recording");
       }
-
-      toast.success("Video log saved successfully");
-      
-      // Navigate back to the home page after successful upload
-      navigate('/');
-    } catch (error) {
-      console.error('Error saving recording:', error);
-      toast.error(error instanceof Error ? error.message : "Error saving recording");
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -311,7 +199,6 @@ const VideoRecorder = () => {
     if (recordedVideoUrl) {
       URL.revokeObjectURL(recordedVideoUrl);
       setRecordedVideoUrl(null);
-      setRecordedBlob(null);
       setHasRecording(false);
       // Switch back to camera feed
       if (videoRef.current) {
@@ -326,7 +213,7 @@ const VideoRecorder = () => {
     if (window.history.length > 1) {
       window.history.back();
     } else {
-      navigate('/');
+      window.location.href = '/'; // Redirect to home or a fallback page if no history
     }
   };
 
@@ -399,6 +286,7 @@ const VideoRecorder = () => {
         />
       )}
 
+
       {/* Back Button */}
       {!hasRecording && (
         <button
@@ -416,6 +304,8 @@ const VideoRecorder = () => {
           <span className="font-mono text-red-500 text-xl font-bold">REC {formatTime(recordingTime)}</span>
         </div>
       )}
+
+      
 
       {/* Floating Record Button */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6">
@@ -451,7 +341,6 @@ const VideoRecorder = () => {
             "p-3 rounded-full transition-all duration-300",
             isRecording ? "bg-destructive/50 text-destructive-foreground" : "bg-accent/50 text-accent-foreground"
           )}
-          disabled={isUploading}
         >
           <Video size={24} />
         </button>
@@ -461,19 +350,13 @@ const VideoRecorder = () => {
             <button
               onClick={saveRecording}
               className="p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
-              disabled={isUploading}
             >
-              {isUploading ? (
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
-              ) : (
-                <Save size={24} />
-              )}
+              <Save size={24} />
             </button>
             
             <button
               onClick={deleteRecording}
               className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
-              disabled={isUploading}
             >
               <Trash size={24} />
             </button>
