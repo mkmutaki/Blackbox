@@ -2,8 +2,56 @@ import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from "sonner";
+import { post } from '@/services/api';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+
+// Crypto helpers
+const generateEncryptionKey = async () => {
+  return await window.crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
+};
+
+const exportKey = async (key: CryptoKey) => {
+  const exported = await window.crypto.subtle.exportKey('jwk', key);
+  return exported;
+};
+
+const encryptVideo = async (blob: Blob) => {
+  // Generate a random IV
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  
+  // Generate encryption key
+  const key = await generateEncryptionKey();
+  
+  // Export key to JWK format
+  const exportedKey = await exportKey(key);
+
+  // Convert blob to array buffer for encryption
+  const arrayBuffer = await blob.arrayBuffer();
+
+  // Encrypt the data
+  const encryptedData = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    arrayBuffer
+  );
+
+  // Create a new blob from the encrypted data
+  const encryptedBlob = new Blob([encryptedData], { type: 'application/octet-stream' });
+  
+  return {
+    encryptedBlob,
+    iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
+    jwk: exportedKey
+  };
+};
 
 const VideoRecorder = () => {
+  // Local recording state for component functionality
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -11,11 +59,17 @@ const VideoRecorder = () => {
   const [permissionError, setPermissionError] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [videoTitle, setVideoTitle] = useState("");
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const timerRef = useRef<NodeJS.Timeout>();
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordedBlobRef = useRef<Blob | null>(null);
+  
+  const { isLoggedIn, user } = useAuth();
+  const navigate = useNavigate();
 
   // Add new state for mission data and dynamic connection ID
   const [missionDay, setMissionDay] = useState(0);
@@ -31,6 +85,20 @@ const VideoRecorder = () => {
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
     setMissionDay(diffDays + 1); // Adding 1 to include the start day as day 1
   }, []);
+
+  // Check authentication on component mount
+  useEffect(() => {
+    if (!isLoggedIn) {
+      toast.error("You must be logged in to record videos");
+      navigate('/login');
+    } else {
+      startCamera();
+    }
+    
+    return () => {
+      stopCamera();
+    };
+  }, [isLoggedIn, navigate]);
 
   // Update time and random digits every second
   useEffect(() => {
@@ -117,6 +185,7 @@ const VideoRecorder = () => {
 
     mediaRecorder.onstop = () => {
       const blob = new Blob(chunks, { type: 'video/webm' });
+      recordedBlobRef.current = blob;
       const url = URL.createObjectURL(blob);
       if (recordedVideoUrl) {
         URL.revokeObjectURL(recordedVideoUrl);
@@ -132,6 +201,9 @@ const VideoRecorder = () => {
         videoRef.current.srcObject = null;
         videoRef.current.src = url;
       }
+      
+      // Set a default title based on entry number
+      setVideoTitle(`Mission Log Entry`);
     };
 
     mediaRecorder.start();
@@ -171,27 +243,43 @@ const VideoRecorder = () => {
   };
 
   const saveRecording = async () => {
-    if (recordedVideoUrl) {
-      try {
-        const response = await fetch(recordedVideoUrl);
-        const blob = await response.blob();
-        const formData = new FormData();
-        formData.append('file', blob, `recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
+    if (!recordedBlobRef.current) {
+      toast.error("No recording to save");
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      
+      // Get the recorded blob
+      const blob = recordedBlobRef.current;
+      
+      // Encrypt the video blob
+      const { encryptedBlob, iv, jwk } = await encryptVideo(blob);
+      
+      // Prepare form data for upload
+      const formData = new FormData();
+      formData.append('file', encryptedBlob, `encrypted_video_${Date.now()}.dat`);
+      formData.append('iv', iv);
+      formData.append('jwk', JSON.stringify(jwk));
+      formData.append('title', videoTitle || `Mission Log Entry`);
 
-        const uploadResponse = await fetch('YOUR_API_ENDPOINT', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (uploadResponse.ok) {
-          toast.success("Recording saved to database");
-        } else {
-          toast.error("Failed to save recording to database");
+      // Upload to server
+      const response = await post('/videos', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
         }
-      } catch (error) {
-        console.error('Error saving recording:', error);
-        toast.error("Error saving recording");
-      }
+      });
+      
+      toast.success("Recording saved to database");
+      
+      // Navigate back to main page after successful upload
+      navigate('/');
+    } catch (error) {
+      console.error('Error saving recording:', error);
+      toast.error("Error saving recording to server");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -200,6 +288,7 @@ const VideoRecorder = () => {
       URL.revokeObjectURL(recordedVideoUrl);
       setRecordedVideoUrl(null);
       setHasRecording(false);
+      recordedBlobRef.current = null;
       // Switch back to camera feed
       if (videoRef.current) {
         videoRef.current.src = '';
@@ -210,11 +299,7 @@ const VideoRecorder = () => {
   };
 
   const goBack = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.href = '/'; // Redirect to home or a fallback page if no history
-    }
+    navigate('/');
   };
 
   const handleEnded = () => {
@@ -230,7 +315,7 @@ const VideoRecorder = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-background">
+    <div className="fixed inset-0 bg-background z-50">
       {/* Vertical Border Lines */}
       <div className="absolute inset-y-0 left-12 w-[2px] bg-white/60 my-[30px]" />
       <div className="absolute inset-y-0 right-12 w-[2px] bg-white/60 my-[30px]" />
@@ -277,7 +362,7 @@ const VideoRecorder = () => {
           ref={videoRef}
           autoPlay
           playsInline
-          muted
+          muted={isRecording} // Only mute during recording to avoid feedback
           className="w-full h-full object-cover"
           onEnded={handleEnded}
           onPlay={handlePlay}
@@ -285,7 +370,6 @@ const VideoRecorder = () => {
           controls={false}
         />
       )}
-
 
       {/* Back Button */}
       {!hasRecording && (
@@ -305,9 +389,20 @@ const VideoRecorder = () => {
         </div>
       )}
 
-      
+      {/* Title input when recording is done */}
+      {hasRecording && !isRecording && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-80">
+          <input
+            type="text"
+            value={videoTitle}
+            onChange={(e) => setVideoTitle(e.target.value)}
+            placeholder="Enter a title for your recording"
+            className="w-full bg-secondary/50 border border-accent/50 rounded px-3 py-2 font-mono text-center"
+          />
+        </div>
+      )}
 
-      {/* Floating Record Button */}
+      {/* Floating Control Buttons */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6">
       
         {(!isRecording && hasRecording) && (
@@ -341,6 +436,7 @@ const VideoRecorder = () => {
             "p-3 rounded-full transition-all duration-300",
             isRecording ? "bg-destructive/50 text-destructive-foreground" : "bg-accent/50 text-accent-foreground"
           )}
+          disabled={isSaving}
         >
           <Video size={24} />
         </button>
@@ -350,13 +446,19 @@ const VideoRecorder = () => {
             <button
               onClick={saveRecording}
               className="p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
+              disabled={isSaving}
             >
-              <Save size={24} />
+              {isSaving ? (
+                <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Save size={24} />
+              )}
             </button>
             
             <button
               onClick={deleteRecording}
               className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
+              disabled={isSaving}
             >
               <Trash size={24} />
             </button>

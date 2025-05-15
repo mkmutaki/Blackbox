@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import VideoRecorder from "@/components/VideoRecorder";
 import EntryList from "@/components/EntryList";
