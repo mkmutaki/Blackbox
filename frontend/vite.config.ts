@@ -11,6 +11,14 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: [
       'b4790d00-fefc-4827-8f59-6deba984cfd6.lovableproject.com',
     ],
+    proxy: {
+      // Proxy API requests to backend server
+      '/api': {
+        target: 'http://localhost:5100',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   plugins: [
     react(),
