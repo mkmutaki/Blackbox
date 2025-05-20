@@ -71,6 +71,7 @@ const VideoRecorder = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordedBlobRef = useRef<Blob | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
   
   const { isLoggedIn, user } = useAuth();
   const navigate = useNavigate();
@@ -129,13 +130,14 @@ const VideoRecorder = () => {
   const startCamera = async () => {
     try {
       setPermissionError(false);
+      // Use lower resolution for preview to improve performance
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 1280 }, // Reduced from 1920 for preview
+          height: { ideal: 720 }, // Reduced from 1080 for preview
           frameRate: { ideal: 30 }
         },
-        audio: true
+        audio: false // Don't request audio access until recording starts
       });
       
       if (videoRef.current) {
@@ -143,6 +145,19 @@ const VideoRecorder = () => {
       }
       streamRef.current = stream;
       toast.success("Camera access granted");
+
+      // Pre-request audio permission but don't use it yet (improves startup performance when recording)
+      try {
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        audioStreamRef.current = audioStream;
+        // Immediately mute all audio tracks to prevent any background capture
+        audioStream.getAudioTracks().forEach(track => {
+          track.enabled = false;
+        });
+      } catch (audioErr) {
+        // Just log the error, we'll handle it during recording
+        console.log('Audio permission not granted yet:', audioErr);
+      }
     } catch (err) {
       console.error('Error accessing camera:', err);
       setPermissionError(true);
@@ -171,56 +186,128 @@ const VideoRecorder = () => {
     }
   };
 
-  const startRecording = () => {
+  const startRecording = async () => {
     if (!streamRef.current) {
       toast.error("No camera access. Please allow camera access and try again.");
       startCamera();
       return;
     }
-
-    const mediaRecorder = new MediaRecorder(streamRef.current);
-    const chunks: BlobPart[] = [];
-
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        chunks.push(e.data);
-      }
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      recordedBlobRef.current = blob;
-      const url = URL.createObjectURL(blob);
-      if (recordedVideoUrl) {
-        URL.revokeObjectURL(recordedVideoUrl);
-      }
-      setRecordedVideoUrl(url);
-      setHasRecording(true);
-      console.log('Recording finished:', url);
-      setRecordingTime(0);
-      toast.success("Recording saved successfully");
+    
+    try {
+      let audioTracks: MediaStreamTrack[] = [];
       
-      // Switch to the recorded video
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-        videoRef.current.src = url;
+      // Use existing pre-authorized audioStream if available, otherwise request it
+      if (audioStreamRef.current) {
+        audioTracks = audioStreamRef.current.getAudioTracks();
+        // Enable audio tracks when recording starts
+        audioTracks.forEach(track => {
+          track.enabled = true;
+        });
+      } else {
+        // Get audio stream if we don't have one
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        audioStreamRef.current = audioStream;
+        audioTracks = audioStream.getAudioTracks();
       }
       
-      // Set a default title based on entry number
-      setVideoTitle(`Mission Log Entry`);
-    };
+      const videoTracks = streamRef.current.getVideoTracks();
+      
+      // Create a recorder-specific stream with optimal settings
+      const recorderStream = new MediaStream([
+        ...videoTracks.map(track => {
+          // Clone the track for optimal quality recording
+          // This prevents shared constraints between preview and recording
+          const videoTrackClone = track.clone();
+          
+          // Apply optimal recording constraints if supported
+          if (videoTrackClone.applyConstraints) {
+            // Wait for constraints to apply
+            videoTrackClone.applyConstraints({
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+              frameRate: { ideal: 30 }
+            }).catch(e => console.log('Could not apply optimal recording constraints:', e));
+          }
+          return videoTrackClone;
+        }),
+        ...audioTracks
+      ]);
 
-    mediaRecorder.start();
-    mediaRecorderRef.current = mediaRecorder;
-    setIsRecording(true);
-    setIsPaused(false);
-    setHasRecording(false);
-    toast.success("Recording started");
+      const mediaRecorder = new MediaRecorder(recorderStream, {
+        mimeType: 'video/webm;codecs=vp9,opus', // Specify better codecs if supported
+        videoBitsPerSecond: 2500000, // Higher bitrate for better quality
+        audioBitsPerSecond: 128000, // Better audio quality
+      });
+      
+      const chunks: BlobPart[] = [];
 
-    // Start recording time interval
-    recordingIntervalRef.current = setInterval(() => {
-      setRecordingTime(prevTime => prevTime + 1);
-    }, 1000);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Disable audio tracks when recording stops, but don't stop them
+        // This maintains the permission but prevents capture
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getAudioTracks().forEach(track => {
+            track.enabled = false;
+          });
+        }
+        
+        // Create the recorded blob with optimized options
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        
+        // Use createObjectURL more efficiently
+        if (recordedVideoUrl) {
+          URL.revokeObjectURL(recordedVideoUrl); // Clean up previous URL
+        }
+        
+        const url = URL.createObjectURL(blob);
+        recordedBlobRef.current = blob;
+        setRecordedVideoUrl(url);
+        setHasRecording(true);
+        setRecordingTime(0);
+        
+        // Optimize playback by preloading the video
+        if (videoRef.current) {
+          // Remove stream first
+          videoRef.current.srcObject = null;
+          // Set the source to the recorded video
+          videoRef.current.src = url;
+          // Preload the video for smoother initial playback
+          videoRef.current.preload = "auto";
+          
+          // Force a load of the first frames (helps with initial rendering)
+          videoRef.current.load();
+          
+          // Wait for metadata to load before showing
+          videoRef.current.onloadedmetadata = () => {
+            toast.success("Recording saved successfully");
+          };
+        }
+        
+        // Set a default title based on entry number
+        setVideoTitle(`Mission Log Entry`);
+      };
+
+      // Start with a reasonable timeslice for more consistent chunks
+      mediaRecorder.start(1000); 
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+      setIsPaused(false);
+      setHasRecording(false);
+      toast.success("Recording started");
+
+      // Start recording time interval
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prevTime => prevTime + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Error starting recording:', err);
+      toast.error("Could not access microphone. Please check your permissions.");
+    }
   };
 
   const stopRecording = () => {
@@ -241,9 +328,23 @@ const VideoRecorder = () => {
     if (isPlaying) {
       videoRef.current.pause();
     } else {
-      videoRef.current.play();
+      // Use play() Promise for better error handling
+      const playPromise = videoRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            // Playback started successfully
+            setIsPlaying(true);
+          })
+          .catch(error => {
+            console.error("Playback failed:", error);
+            // Handle play() failure
+            toast.error("Playback couldn't start. Try again.");
+            setIsPlaying(false);
+          });
+      }
     }
-    setIsPlaying(!isPlaying);
   };
 
   const saveRecording = async () => {
@@ -290,15 +391,29 @@ const VideoRecorder = () => {
 
   const deleteRecording = () => {
     if (recordedVideoUrl) {
-      URL.revokeObjectURL(recordedVideoUrl);
-      setRecordedVideoUrl(null);
-      setHasRecording(false);
-      recordedBlobRef.current = null;
-      // Switch back to camera feed
       if (videoRef.current) {
-        videoRef.current.src = '';
-        videoRef.current.srcObject = streamRef.current;
+        // Pause and reset the video before switching sources
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+        
+        // Clean up the previous blob URL
+        URL.revokeObjectURL(recordedVideoUrl);
+        
+        // Reset state
+        setRecordedVideoUrl(null);
+        setHasRecording(false);
+        recordedBlobRef.current = null;
+        setIsPlaying(false);
+        
+        // Switch back to camera feed
+        requestAnimationFrame(() => {
+          if (videoRef.current) {
+            videoRef.current.src = '';
+            videoRef.current.srcObject = streamRef.current;
+          }
+        });
       }
+      
       toast.success("Recording deleted");
     }
   };
@@ -331,6 +446,13 @@ const VideoRecorder = () => {
       <div className="absolute top-6 left-16 space-y-1 font-mono z-10">
         <div className="text-lg text-grey-500 text-shadow text-shadow-white">MISSION DAY</div>
         <div className="text-3xl font-bold bg-secondary/50 px-3 py-1 rounded text-shadow text-shadow-white">SOL {missionDay} </div>
+              {/* Recording Indicator */}
+      {isRecording && (
+        <div className="absolute top-18 space-y-1 flex items-center gap-2">
+          <Circle size={12} className="text-red-500 animate-pulse" fill="currentColor" />
+          <span className="font-mono text-red-500 text-xl font-bold">REC {formatTime(recordingTime)}</span>
+        </div>
+      )}
       </div>
 
       {/* Mission Info - Top Right */}
@@ -375,6 +497,9 @@ const VideoRecorder = () => {
           onPlay={handlePlay}
           onPause={handlePause}
           controls={false}
+          preload="auto"
+          disablePictureInPicture={true}
+          disableRemotePlayback={true}
         />
       )}
 
@@ -387,14 +512,6 @@ const VideoRecorder = () => {
         >
           <ArrowLeft size={24} className="text-white" />
         </button>
-      )}
-
-      {/* Recording Indicator */}
-      {isRecording && (
-        <div className="absolute top-6 right-48 flex items-center gap-2">
-          <Circle size={12} className="text-red-500 animate-pulse" fill="currentColor" />
-          <span className="font-mono text-red-500 text-xl font-bold">REC {formatTime(recordingTime)}</span>
-        </div>
       )}
 
       {/* Title input when recording is done */}
@@ -438,23 +555,7 @@ const VideoRecorder = () => {
             >
               <FastForward size={24} />
             </button>
-          </>
-        )}
-
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          className={cn(
-            "p-3 rounded-full transition-all duration-300",
-            isRecording ? "bg-destructive/50 text-destructive-foreground" : "bg-accent/50 text-accent-foreground"
-          )}
-          disabled={isSaving}
-          type="button"
-        >
-          <Video size={24} />
-        </button>
-
-        {hasRecording && !isRecording && (
-            <> 
+            
             <button
               onClick={saveRecording}
               className="p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
@@ -476,7 +577,22 @@ const VideoRecorder = () => {
             >
               <Trash size={24} />
             </button>
-            </>
+          </>
+        )}
+
+        {/* Show recording button only when recording is in progress or when no recording exists */}
+        {(isRecording || !hasRecording) && (
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={cn(
+              "p-3 rounded-full transition-all duration-300",
+              isRecording ? "bg-destructive/50 text-destructive-foreground" : "bg-accent/50 text-accent-foreground"
+            )}
+            disabled={isSaving}
+            type="button"
+          >
+            <Video size={24} />
+          </button>
         )}
       </div>
     </div>
