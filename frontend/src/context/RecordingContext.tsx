@@ -7,7 +7,11 @@ interface RecordingContextType {
 
 const RecordingContext = createContext<RecordingContextType | undefined>(undefined);
 
-export function RecordingProvider({ children }: { children: ReactNode }) {
+interface RecordingProviderProps {
+  children: ReactNode;
+}
+
+export function RecordingProvider({ children }: RecordingProviderProps) {
   const [isRecording, setIsRecording] = useState(false);
 
   return (
@@ -17,7 +21,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useRecording() {
+export function useRecording(): RecordingContextType {
   const context = useContext(RecordingContext);
   if (context === undefined) {
     throw new Error('useRecording must be used within a RecordingProvider');

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useRecording } from '@/context/RecordingContext';
 import { ChevronDown, LogOut, User, Settings } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -13,11 +14,12 @@ import { toast } from '@/components/ui/use-toast';
 
 export function Header() {
   const { user, logout, isLoggedIn } = useAuth();
+  const { isRecording } = useRecording();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   
-  // Hide header when not logged in
-  if (!isLoggedIn) return null;
+  // Hide header when not logged in or when recording
+  if (!isLoggedIn || isRecording) return null;
 
   const handleSignOut = () => {
     logout();
@@ -29,7 +31,7 @@ export function Header() {
   };
 
   return (
-    <header className="fixed top-0 right-0 z-40 p-4 flex justify-end">
+    <header className="fixed top-0 right-0 z-50 p-4 flex justify-end">
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
           <Button 

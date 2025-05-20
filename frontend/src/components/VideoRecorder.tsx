@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { post } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { useRecording } from '@/context/RecordingContext';
 
 // Crypto helpers
 const generateEncryptionKey = async () => {
@@ -61,6 +62,9 @@ const VideoRecorder = () => {
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [videoTitle, setVideoTitle] = useState("");
+  
+  // Access global recording state
+  const { setIsRecording: setGlobalIsRecording } = useRecording();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -273,7 +277,8 @@ const VideoRecorder = () => {
       
       toast.success("Recording saved to database");
       
-      // Navigate back to main page after successful upload
+      // Reset global recording state and navigate back
+      setGlobalIsRecording(false);
       navigate('/');
     } catch (error) {
       console.error('Error saving recording:', error);
@@ -299,6 +304,8 @@ const VideoRecorder = () => {
   };
 
   const goBack = () => {
+    // Reset global recording state when going back to main page
+    setGlobalIsRecording(false);
     navigate('/');
   };
 
@@ -376,6 +383,7 @@ const VideoRecorder = () => {
         <button
           onClick={goBack}
           className="absolute bottom-[31px] left-[44%] -translate-x-1/2 flex items-center p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
+          type="button"
         >
           <ArrowLeft size={24} className="text-white" />
         </button>
@@ -410,6 +418,7 @@ const VideoRecorder = () => {
             <button
               className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
               onClick={() => videoRef.current && (videoRef.current.currentTime -= 5)}
+              type="button"
             >
               <Rewind size={24} />
             </button>
@@ -417,6 +426,7 @@ const VideoRecorder = () => {
             <button
               onClick={togglePlayPause}
               className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
+              type="button"
             >
               {isPlaying ? <Pause size={24} /> : <Play size={24} />}
             </button>
@@ -424,6 +434,7 @@ const VideoRecorder = () => {
             <button
               className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
               onClick={() => videoRef.current && (videoRef.current.currentTime += 5)}
+              type="button"
             >
               <FastForward size={24} />
             </button>
@@ -437,6 +448,7 @@ const VideoRecorder = () => {
             isRecording ? "bg-destructive/50 text-destructive-foreground" : "bg-accent/50 text-accent-foreground"
           )}
           disabled={isSaving}
+          type="button"
         >
           <Video size={24} />
         </button>
@@ -447,6 +459,7 @@ const VideoRecorder = () => {
               onClick={saveRecording}
               className="p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
               disabled={isSaving}
+              type="button"
             >
               {isSaving ? (
                 <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" />
@@ -459,6 +472,7 @@ const VideoRecorder = () => {
               onClick={deleteRecording}
               className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
               disabled={isSaving}
+              type="button"
             >
               <Trash size={24} />
             </button>
