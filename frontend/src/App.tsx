@@ -27,7 +27,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter basename={import.meta.env.PROD ? '/Blackbox' : ''}>
             <Header />
             <Routes>
               {/* Protected routes */}

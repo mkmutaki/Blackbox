@@ -2,12 +2,15 @@
     "name": "blackbox-root",
     "private": true,
     "version": "1.0.0",
-    "scripts": {
-      "start": "cd frontend && npm run dev",
-      "dev": "cd frontend && npm run dev",
-      "build": "cd frontend && npm run build",
-      "backend": "cd backend && node server.js"
-    },
+  "scripts": {
+    "start": "cd frontend && npm run dev",
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "build:prod": "cd frontend && npm run build:prod",
+    "backend": "cd backend && node server.js",
+    "deploy:setup": "cd frontend && npm run deploy:setup",
+    "deploy": "cd frontend && npm run deploy"
+  },
     "workspaces": [
       "frontend",
       "backend"
