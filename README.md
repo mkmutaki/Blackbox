@@ -1,4 +1,4 @@
-# BLACKBOX 
+# BLACKBOX 📹
 
 ## About :
 🔴 Blackbox is a sci-fi themed secure video journaling platform that transforms your personal recordings into authentic mission logs, as if you're documenting your journey on Mars.
