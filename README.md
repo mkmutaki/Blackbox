@@ -1,22 +1,20 @@
 # BLACKBOX 
 
 ## About :
-🔴 The 'Bankist WebApp' functions as a miniature replica of a bank that performs basic operations like **money transfers**, **loan requests**, **account closures**, and **viewing your balance**. Moreover, all transactions will be listed in the log as either **withdrawals** or **deposits** with there given timestamps.
+🔴 Blackbox is a sci-fi themed secure video journaling platform that transforms your personal recordings into authentic mission logs, as if you're documenting your journey on Mars.
 
-🔴 The WebApp's **sort feature** also enables users to view all their transactions from the highest to lowest amounts.
+🔴 Every video is encrypted client-side using AES-GCM before being stored, ensuring complete privacy and security
 
-🔴 In addition, from the standpoint of **account security**, if no transactions are made for a predetermined amount of time, the user will be promptly logged out of the account.
+🔴 Each user has their own private mission log accessible only through authenticated accounts
 
 ## Bankist Demo credentials :
 
 | Username  | UserID | Password |
 | ------------- | ------------- | ------------- |
-| Jonas Schmedtmann  | js  | 1111  |
-| Jessica Davis  | jd  | 2222  |
-| Steven Thomas Williams  | stw  | 3333  |
-| Gerald Fitz  | gf  | 4444  |
+| Gerald Fitz  | gf@gmail.com  | 12345678  |
+| Jessica Davis  | jd@gmail.com  | 87654321  |
 
- ## Languages used:
+ ## Languages & Techonlogies used:
 <code><img src="https://img.icons8.com/color/48/000000/html-5--v1.png"/></code>
 <code><img src="https://img.icons8.com/color/48/000000/css3.png"/></code>
 <code><img src="https://img.icons8.com/?size=48&id=uJM6fQYqDaZK&format=png&color=000000"/></code>
