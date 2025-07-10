@@ -35,11 +35,17 @@ const encryptVideo = async (blob: Blob) => {
   const arrayBuffer = await blob.arrayBuffer();
 
   // Encrypt the data
-  const encryptedData = await window.crypto.subtle.encrypt(
+  const encrypted = await window.crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
     arrayBuffer
   );
+
+  const encryptedData = new Uint8Array(encrypted);
+
+console.log("encryptedData:", encryptedData);
+console.log("encryptedData type:", typeof encryptedData);
+
 
   // Create a new blob from the encrypted data
   const encryptedBlob = new Blob([encryptedData], { type: 'application/octet-stream' });
@@ -368,6 +374,13 @@ const VideoRecorder = () => {
       formData.append('iv', iv);
       formData.append('jwk', JSON.stringify(jwk));
       formData.append('title', videoTitle || `Mission Log Entry`);
+
+      // Test upload before
+      if (!encryptedBlob || encryptedBlob.size === 0) {
+        console.error("Encrypted blob is empty — aborting upload.");
+        return;
+      }
+
 
       // Upload to server
       const response = await post('/api/videos', formData);
