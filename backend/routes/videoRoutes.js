@@ -36,12 +36,6 @@ router.post('/', upload.single('file'), async (req, res) => {
     const file = req.file;
     const userId = req.user.userId;
 
-  console.log('Received POST /api/videos');
-  console.log('req.file:', req.file);
-  console.log('req.body.iv:', req.body.iv);
-  console.log('req.body.jwk:', req.body.jwk);
-  console.log('req.body.title:', req.body.title);
-
     if (!file || !iv || !jwk) {
       return res.status(400).json({ error: 'File, iv, and jwk are required' });
     }
