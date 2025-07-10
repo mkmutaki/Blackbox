@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
+import api from '../services/api';
 
 // Types
 type User = {
@@ -43,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Verify token and get user data
-        const res = await axios.get('/api/auth/me');
+        const res = await api.get('/auth/me');
         
         setUser(res.data);
         setIsLoggedIn(true);
@@ -64,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      const res = await axios.post('/api/auth/register', { 
+      const res = await api.post('/auth/register', { 
         email, 
         password 
       });
@@ -94,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      const res = await axios.post('/api/auth/login', {
+      const res = await api.post('/auth/login', {
         email,
         password
       });
