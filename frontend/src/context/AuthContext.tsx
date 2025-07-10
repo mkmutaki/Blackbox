@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Verify token and get user data
-        const res = await api.get('/auth/me');
+        const res = await api.get('/api/auth/me');
         
         setUser(res.data);
         setIsLoggedIn(true);
@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      const res = await api.post('/auth/register', { 
+      const res = await api.post('/api/auth/register', { 
         email, 
         password 
       });
@@ -95,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      const res = await api.post('/auth/login', {
+      const res = await api.post('/api/auth/login', {
         email,
         password
       });
