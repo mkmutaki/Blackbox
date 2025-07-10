@@ -16,7 +16,8 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       // Proxy API requests to backend server
       '/api': {
-        target: 'http://localhost:5100',
+        target: 'https://blackbox-2lt5.onrender.com',
+        // target: 'http://localhost:5100',
         changeOrigin: true,
         secure: false,
       }

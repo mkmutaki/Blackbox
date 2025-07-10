@@ -18,7 +18,10 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // Security middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: 'https://mkmutaki.github.io', 
+  credentials: true
+}));
 app.use(express.json());
 
 // Simple health check endpoint
