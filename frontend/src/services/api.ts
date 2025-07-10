@@ -1,9 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 // Determine the API base URL based on environment
-const API_BASE_URL = import.meta.env.PROD 
-  ? 'mongodb+srv://mkmutaki:eto7jIw2x5TxRwjc@blackb0x.vmfncmw.mongodb.net/'  // Replace with your actual backend URL
-  : '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Create Axios instance with default config
 const api = axios.create({
