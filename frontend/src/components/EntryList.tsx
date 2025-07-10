@@ -41,7 +41,7 @@ const EntryList = () => {
     setError(null);
     
     try {
-      const data = await get<Video[]>('/videos');
+      const data = await get<Video[]>('/api/videos');
       setVideos(data);
     } catch (err: any) {
       console.error('Failed to fetch videos:', err);
