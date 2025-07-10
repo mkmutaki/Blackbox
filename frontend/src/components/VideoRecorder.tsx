@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from "sonner";
-import api, { post } from '@/services/api';
+import { post } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useRecording } from '@/context/RecordingContext';
@@ -370,7 +370,7 @@ const VideoRecorder = () => {
       formData.append('title', videoTitle || `Mission Log Entry`);
 
       // Upload to server
-      const response = await api.post('/api/videos', formData);
+      const response = await post('/api/videos', formData);
       
       toast.success("Recording saved to database");
       
