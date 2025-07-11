@@ -87,7 +87,7 @@ const EntryList = () => {
     }
     
     try {
-      await del(`/videos/${id}`);
+      await del(`/api/videos/${id}`);
       
       // Remove from local state
       setVideos(videos.filter(video => video.id !== id));
