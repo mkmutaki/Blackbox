@@ -439,37 +439,42 @@ const VideoRecorder = () => {
   return (
     <div className="fixed inset-0 bg-background z-50">
       {/* Vertical Border Lines */}
-      <div className="absolute inset-y-0 left-12 w-[2px] bg-white/60 my-[30px]" />
-      <div className="absolute inset-y-0 right-12 w-[2px] bg-white/60 my-[30px]" />
+      <div className="absolute inset-y-0 left-2 sm:left-12 w-[1px] sm:w-[2px] bg-white/60 my-[15px] sm:my-[30px]" />
+      <div className="absolute inset-y-0 right-2 sm:right-12 w-[1px] sm:w-[2px] bg-white/60 my-[15px] sm:my-[30px]" />
 
       {/* Mission Info - Top Left */}
-      <div className="absolute top-6 left-16 space-y-1 font-mono z-10">
-        <div className="text-lg text-grey-500 text-shadow text-shadow-white">MISSION DAY</div>
-        <div className="text-3xl font-bold bg-secondary/50 px-3 py-1 rounded text-shadow text-shadow-white">SOL {missionDay} </div>
-              {/* Recording Indicator */}
-      {isRecording && (
-        <div className="absolute top-18 space-y-1 flex items-center gap-2">
-          <Circle size={12} className="text-red-500 animate-pulse" fill="currentColor" />
-          <span className="font-mono text-red-500 text-xl font-bold">REC {formatTime(recordingTime)}</span>
-        </div>
-      )}
+      <div className="absolute top-4 left-4 sm:top-6 sm:left-16 space-y-1 font-mono z-10">
+        <div className="text-sm sm:text-lg text-grey-500 text-shadow text-shadow-white">MISSION DAY</div>
+        <div className="text-lg sm:text-3xl font-bold bg-secondary/50 px-2 sm:px-3 py-1 rounded text-shadow text-shadow-white">SOL {missionDay}</div>
+        {/* Recording Indicator */}
+        {isRecording && (
+          <div className="flex items-center gap-2 mt-2">
+            <Circle size={10} className="text-red-500 animate-pulse sm:w-3 sm:h-3" fill="currentColor" />
+            <span className="font-mono text-red-500 text-sm sm:text-xl font-bold">REC {formatTime(recordingTime)}</span>
+          </div>
+        )}
       </div>
 
       {/* Mission Info - Top Right */}
-      <div className="absolute top-6 right-16 text-right font-mono z-10">
-        <div className="mb-2 text-xl text-grey-500 text-shadow text-shadow-white">
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-16 text-right font-mono z-10">
+        <div className="mb-1 sm:mb-2 text-sm sm:text-xl text-grey-500 text-shadow text-shadow-white">
           TIME {currentTime.slice(0, 2)}
           <span className="animate-[pulse_1s_ease-in-out_infinite]">:</span>
           {currentTime.slice(2, 4)}
         </div>
-        <div className="text-lg text-grey-500 text-shadow text-shadow-white">LOG ENTRY {'>'} WATNEY #{logNumber}</div>
+        <div className="text-xs sm:text-lg text-grey-500 text-shadow text-shadow-white">
+          <span className="block sm:inline">LOG ENTRY</span>
+          <span className="block sm:inline"> {'>'} WATNEY #{logNumber}</span>
+        </div>
       </div>
 
       {/* Connection ID - Bottom */}
-      <div className="absolute bottom-10 left-16 font-mono z-10">
-        <div className="text-sm text-grey-500 flex items-center text-shadow text-shadow-white">
-          CONNECTED-
-          <span>{new Date().toISOString().replace(/[-:]/g, '').slice(0, 10)}</span>
+      <div className="absolute bottom-8 sm:bottom-10 left-4 sm:left-16 font-mono z-10">
+        <div className="text-xs sm:text-sm text-grey-500 flex items-center text-shadow text-shadow-white">
+          <span className="hidden sm:inline">CONNECTED-</span>
+          <span className="sm:hidden">CONN-</span>
+          <span>{new Date().toISOString().replace(/[-:]/g, '').slice(0, 8)}</span>
+          <span className="hidden sm:inline">{new Date().toISOString().replace(/[-:]/g, '').slice(8, 10)}</span>
           <span>{randomDigits}</span>
         </div>
       </div>
@@ -507,75 +512,75 @@ const VideoRecorder = () => {
       {!hasRecording && (
         <button
           onClick={goBack}
-          className="absolute bottom-[31px] left-[44%] -translate-x-1/2 flex items-center p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
+          className="absolute bottom-6 sm:bottom-[31px] left-1/2 -translate-x-1/2 flex items-center p-2 sm:p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
           type="button"
         >
-          <ArrowLeft size={24} className="text-white" />
+          <ArrowLeft size={20} className="text-white sm:w-6 sm:h-6" />
         </button>
       )}
 
       {/* Title input when recording is done */}
       {hasRecording && !isRecording && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-80">
+        <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 w-72 sm:w-80 px-4 sm:px-0">
           <input
             type="text"
             value={videoTitle}
             onChange={(e) => setVideoTitle(e.target.value)}
             placeholder="Enter a title for your recording"
-            className="w-full bg-secondary/50 border border-accent/50 rounded px-3 py-2 font-mono text-center"
+            className="w-full bg-secondary/50 border border-accent/50 rounded px-3 py-2 font-mono text-center text-sm sm:text-base"
           />
         </div>
       )}
 
       {/* Floating Control Buttons */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6">
+      <div className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 sm:gap-6">
       
         {(!isRecording && hasRecording) && (
           <>
             <button
-              className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
+              className="p-2 sm:p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
               onClick={() => videoRef.current && (videoRef.current.currentTime -= 5)}
               type="button"
             >
-              <Rewind size={24} />
+              <Rewind size={20} className="sm:w-6 sm:h-6" />
             </button>
 
             <button
               onClick={togglePlayPause}
-              className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
+              className="p-2 sm:p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
               type="button"
             >
-              {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+              {isPlaying ? <Pause size={20} className="sm:w-6 sm:h-6" /> : <Play size={20} className="sm:w-6 sm:h-6" />}
             </button>
 
             <button
-              className="p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
+              className="p-2 sm:p-3 rounded-full bg-secondary/50 text-muted hover:text-foreground transition-all duration-300"
               onClick={() => videoRef.current && (videoRef.current.currentTime += 5)}
               type="button"
             >
-              <FastForward size={24} />
+              <FastForward size={20} className="sm:w-6 sm:h-6" />
             </button>
             
             <button
               onClick={saveRecording}
-              className="p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
+              className="p-2 sm:p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
               disabled={isSaving}
               type="button"
             >
               {isSaving ? (
-                <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" />
+                <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-t-transparent rounded-full animate-spin" />
               ) : (
-                <Save size={24} />
+                <Save size={20} className="sm:w-6 sm:h-6" />
               )}
             </button>
             
             <button
               onClick={deleteRecording}
-              className="p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
+              className="p-2 sm:p-3 rounded-full bg-destructive/20 hover:bg-destructive/40 text-destructive-foreground transition-all duration-300"
               disabled={isSaving}
               type="button"
             >
-              <Trash size={24} />
+              <Trash size={20} className="sm:w-6 sm:h-6" />
             </button>
           </>
         )}
@@ -585,13 +590,13 @@ const VideoRecorder = () => {
           <button
             onClick={isRecording ? stopRecording : startRecording}
             className={cn(
-              "p-3 rounded-full transition-all duration-300",
+              "p-2 sm:p-3 rounded-full transition-all duration-300",
               isRecording ? "bg-destructive/50 text-destructive-foreground" : "bg-accent/50 text-accent-foreground"
             )}
             disabled={isSaving}
             type="button"
           >
-            <Video size={24} />
+            <Video size={20} className="sm:w-6 sm:h-6" />
           </button>
         )}
       </div>
