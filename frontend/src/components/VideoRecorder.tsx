@@ -512,7 +512,7 @@ const VideoRecorder = () => {
       {!hasRecording && (
         <button
           onClick={goBack}
-          className="absolute bottom-6 sm:bottom-[31px] left-1/2 -translate-x-1/2 flex items-center p-2 sm:p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
+          className="absolute bottom-6 sm:bottom-[31px] right-4 sm:right-8 flex items-center p-2 sm:p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
           type="button"
         >
           <ArrowLeft size={20} className="text-white sm:w-6 sm:h-6" />
