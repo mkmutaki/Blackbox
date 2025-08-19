@@ -32,6 +32,7 @@ const register = async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
+        profile: user.profile,
         createdAt: user.createdAt
       }
     });
@@ -74,6 +75,7 @@ const login = async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
+        profile: user.profile,
         createdAt: user.createdAt
       }
     });

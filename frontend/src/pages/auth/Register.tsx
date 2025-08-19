@@ -45,7 +45,7 @@ export default function Register() {
       await register(email, password);
       toast({
         title: 'Account created successfully',
-        description: 'Welcome to Blackbox!',
+        description: 'Please complete your profile to continue.',
       });
       navigate('/');
     } catch (error: any) {

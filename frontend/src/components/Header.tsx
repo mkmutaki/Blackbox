@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { ProfileModal } from '@/components/ProfileModal';
 import { toast } from '@/components/ui/use-toast';
 
 export function Header() {
@@ -17,6 +18,7 @@ export function Header() {
   const { isRecording } = useRecording();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
   // Hide header when not logged in or when recording
   if (!isLoggedIn || isRecording) return null;
@@ -28,6 +30,11 @@ export function Header() {
       description: "You have been signed out of your account."
     });
     navigate('/login');
+  };
+
+  const handleProfileClick = () => {
+    setIsOpen(false);
+    setIsProfileModalOpen(true);
   };
 
   return (
@@ -43,7 +50,10 @@ export function Header() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="font-mono">
-          <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
+          <DropdownMenuItem 
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={handleProfileClick}
+          >
             <User size={16} />
             <span>Profile</span>
           </DropdownMenuItem>
@@ -60,6 +70,11 @@ export function Header() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+      />
     </header>
   );
 }

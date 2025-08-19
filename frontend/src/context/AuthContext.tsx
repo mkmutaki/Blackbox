@@ -7,6 +7,12 @@ type User = {
   id: string;
   email: string;
   createdAt: string;
+  profile?: {
+    username?: string;
+    dateOfBirth?: string;
+    location?: string;
+    isProfileComplete: boolean;
+  };
 };
 
 type AuthContextType = {
@@ -16,6 +22,7 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateProfile: (profileData: { username: string; dateOfBirth: string; location: string }) => Promise<void>;
   error: string | null;
 };
 
@@ -127,6 +134,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoggedIn(false);
   };
 
+  // Update user profile
+  const updateProfile = async (profileData: { username: string; dateOfBirth: string; location: string }) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const res = await api.put('/api/profile/update', profileData);
+      
+      // Update user state with new profile data
+      setUser(res.data.user);
+      setIsLoading(false);
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      setError(error.response?.data?.error || 'Profile update failed');
+      setIsLoading(false);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -136,6 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         logout,
+        updateProfile,
         error
       }}
     >

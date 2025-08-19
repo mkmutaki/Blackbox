@@ -13,6 +13,26 @@ const UserSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
+  profile: {
+    username: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    dateOfBirth: {
+      type: Date,
+      default: null
+    },
+    location: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    isProfileComplete: {
+      type: Boolean,
+      default: false
+    }
+  },
   createdAt: { 
     type: Date, 
     default: Date.now 
