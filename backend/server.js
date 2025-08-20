@@ -20,7 +20,11 @@ mongoose.connect(process.env.MONGO_URI, {
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: 'https://mkmutaki.github.io', 
+  origin: [
+    'https://mkmutaki.github.io',
+    'http://localhost:8080',
+    'http://localhost:3000'
+  ], 
   credentials: true
 }));
 app.use(express.json());

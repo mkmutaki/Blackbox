@@ -1,7 +1,24 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
-// Determine the API base URL based on environment
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Dynamic API base URL based on environment
+const getApiBaseUrl = () => {
+  // Check if we're in development mode (use proxy)
+  if (import.meta.env.DEV) {
+    return '/api';  // Use relative path - Vite will proxy this
+  }
+  
+  // Check if we're running on GitHub Pages
+  if (window.location.hostname === 'mkmutaki.github.io') {
+    return 'https://blackbox-2lt5.onrender.com/api';
+  }
+  
+  // Fallback for other environments
+  return import.meta.env.VITE_API_BASE_URL || '/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('API Base URL:', API_BASE_URL); // Debug log to verify correct URL
 
 // Create Axios instance with default config
 const api = axios.create({

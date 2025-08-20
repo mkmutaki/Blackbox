@@ -370,7 +370,7 @@ const VideoRecorder = () => {
       formData.append('title', videoTitle || `Mission Log Entry`);
 
       // Upload to server
-      const response = await post('/api/videos', formData, {
+      const response = await post('/videos', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         }

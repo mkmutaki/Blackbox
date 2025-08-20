@@ -41,7 +41,7 @@ const EntryList = () => {
     setError(null);
     
     try {
-      const data = await get<Video[]>('/api/videos');
+      const data = await get<Video[]>('/videos');
       setVideos(data);
     } catch (err: any) {
       console.error('Failed to fetch videos:', err);
@@ -87,7 +87,7 @@ const EntryList = () => {
     }
     
     try {
-      await del(`/api/videos/${id}`);
+      await del(`/videos/${id}`);
       
       // Remove from local state
       setVideos(videos.filter(video => video.id !== id));
