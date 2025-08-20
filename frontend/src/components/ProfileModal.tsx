@@ -118,14 +118,6 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               Profile Settings
             </DialogTitle>
           </DialogHeader>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCancel}
-            className="h-6 w-6 p-0"
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
