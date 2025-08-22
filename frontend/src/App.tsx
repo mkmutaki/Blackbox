@@ -12,6 +12,7 @@ import Register from "./pages/auth/Register";
 
 // Components
 import { Header } from "./components/Header";
+import { LogoutTimer } from "./components/LogoutTimer";
 
 // Auth
 import { AuthProvider } from "./context/AuthContext";
@@ -47,6 +48,12 @@ const App = () => (
               {/* Catch-all route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+
+            {/* Auto-logout timer - only shows when user is authenticated */}
+            <LogoutTimer 
+              timeoutMinutes={5} 
+              showWarningAt={120} // 2 minutes warning
+            />
           </BrowserRouter>
         </TooltipProvider>
       </RecordingProvider>
