@@ -45,7 +45,7 @@ export function Header() {
             variant="outline" 
             className="flex items-center gap-2 bg-background/80 backdrop-blur-sm border-accent/30 hover:border-accent"
           >
-            <span className="font-mono">{user?.email?.split('@')[0] || 'User'}</span>
+            <span className="font-mono">{user?.profile?.username ? user.profile.username.charAt(0).toUpperCase() + user.profile.username.slice(1) : user?.email?.split('@')[0] || 'User'}</span>
             <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </Button>
         </DropdownMenuTrigger>

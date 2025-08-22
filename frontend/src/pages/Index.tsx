@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import VideoRecorder from "@/components/VideoRecorder";
 import EntryList from "@/components/EntryList";
 import { useRecording } from "@/context/RecordingContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
   // Use local state for transition effects if needed
@@ -9,6 +10,9 @@ const Index = () => {
   
   // Use the global recording context
   const { isRecording, setIsRecording } = useRecording();
+  
+  // Get user data for username
+  const { user } = useAuth();
   
   // Sync the local state with the context state
   useEffect(() => {
@@ -29,7 +33,7 @@ const Index = () => {
           <div className="max-w-4xl mx-auto space-y-8">
             <header className="text-center space-y-4">
               <div className="inline-block px-3 py-1 rounded-full bg-accent/10 text-accent text-sm font-mono">
-                Video Diary
+                {user?.profile?.username ? `${user.profile.username.charAt(0).toUpperCase() + user.profile.username.slice(1)}'s Video Diary` : 'Video Diary'}
               </div>
               <h1 className="text-4xl font-mono font-bold text-foreground tracking-tight">
                 Mission Log

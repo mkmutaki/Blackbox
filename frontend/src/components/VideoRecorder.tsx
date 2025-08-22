@@ -427,14 +427,14 @@ const VideoRecorder = () => {
         </div>
         <div className="text-xs sm:text-lg text-grey-500 text-shadow text-shadow-white">
           <span className="block sm:inline">LOG ENTRY</span>
-          <span className="block sm:inline"> {'>'} WATNEY #{logNumber}</span>
+          <span className="block sm:inline"> {'>'} {user?.profile?.username?.toUpperCase() || 'GHOST'} #{logNumber}</span>
         </div>
       </div>
 
       <div className="absolute bottom-8 sm:bottom-10 left-4 sm:left-16 font-mono z-10">
         <div className="text-xs sm:text-sm text-grey-500 flex items-center text-shadow text-shadow-white">
           <span className="hidden sm:inline">CONNECTED-</span>
-          <span className="sm:hidden">CONN-</span>
+          <span className="sm:hidden">CON-</span>
           <span>{new Date().toISOString().replace(/[-:]/g, '').slice(0, 8)}</span>
           <span className="hidden sm:inline">{new Date().toISOString().replace(/[-:]/g, '').slice(8, 10)}</span>
           <span>{randomDigits}</span>
