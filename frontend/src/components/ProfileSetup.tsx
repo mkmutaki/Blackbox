@@ -13,23 +13,21 @@ interface ProfileSetupProps {
 }
 
 export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
-  const [username, setUsername] = useState('');
+  const { updateProfile } = useAuth();
+
   const [dateOfBirth, setDateOfBirth] = useState('');
-  const [location, setLocation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { updateProfile } = useAuth();
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     // Reset error state
     setError(null);
 
     // Validate inputs
-    if (!username.trim() || !dateOfBirth || !location.trim()) {
-      setError('All fields are required');
+    if (!dateOfBirth) {
+      setError('Date of birth is required');
       return;
     }
 
@@ -37,7 +35,7 @@ export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
     const birthDate = new Date(dateOfBirth);
     const today = new Date();
     const age = today.getFullYear() - birthDate.getFullYear();
-    
+
     if (birthDate > today) {
       setError('Date of birth cannot be in the future');
       return;
@@ -51,11 +49,7 @@ export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
     setIsLoading(true);
 
     try {
-      await updateProfile({
-        username: username.trim(),
-        dateOfBirth,
-        location: location.trim()
-      });
+      await updateProfile({ dateOfBirth });
 
       toast({
         title: 'Profile setup complete',
@@ -65,7 +59,7 @@ export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
       onComplete();
     } catch (error: any) {
       setError(
-        error.response?.data?.error || 
+        error.response?.data?.error ||
         'Failed to save profile. Please try again.'
       );
     } finally {
@@ -75,15 +69,20 @@ export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
 
   return (
     <Dialog open={isOpen} modal>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        hideCloseButton
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-center text-2xl font-mono">
-            Complete Your Profile
+            One Last Step
           </DialogTitle>
         </DialogHeader>
 
         <div className="text-center text-sm text-muted-foreground mb-6">
-          Please provide some basic information to get started
+          We just need your date of birth to finish setting up your account
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -94,38 +93,12 @@ export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              placeholder="Enter your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="font-mono"
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="dateOfBirth">Date of Birth</Label>
             <Input
               id="dateOfBirth"
               type="date"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
-              className="font-mono"
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="location">Current Location</Label>
-            <Input
-              id="location"
-              type="text"
-              placeholder="Enter your location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
               className="font-mono"
               disabled={isLoading}
             />

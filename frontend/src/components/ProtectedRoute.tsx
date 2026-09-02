@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ProfileSetup } from '@/components/ProfileSetup';
@@ -10,7 +10,6 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isLoggedIn, isLoading, user } = useAuth();
   const location = useLocation();
-  const [showProfileSetup, setShowProfileSetup] = useState(false);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -35,9 +34,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return (
       <>
         {children}
-        <ProfileSetup 
-          isOpen={true} 
-          onComplete={() => setShowProfileSetup(false)} 
+        <ProfileSetup
+          isOpen={true}
+          onComplete={() => {}}
         />
       </>
     );

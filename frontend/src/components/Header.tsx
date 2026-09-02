@@ -2,24 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecording } from '@/context/RecordingContext';
-import { ChevronDown, LogOut, User, Settings } from 'lucide-react';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+import { LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ProfileModal } from '@/components/ProfileModal';
+import { SettingsModal } from '@/components/SettingsModal';
 import { toast } from '@/components/ui/use-toast';
 
 export function Header() {
-  const { user, logout, isLoggedIn } = useAuth();
+  const { logout, isLoggedIn } = useAuth();
   const { isRecording } = useRecording();
   const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   // Hide header when not logged in or when recording
   if (!isLoggedIn || isRecording) return null;
 
@@ -32,48 +25,30 @@ export function Header() {
     navigate('/login');
   };
 
-  const handleProfileClick = () => {
-    setIsOpen(false);
-    setIsProfileModalOpen(true);
-  };
-
   return (
-    <header className="fixed top-0 right-0 z-50 p-4 flex justify-end">
-      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="outline" 
-            className="flex items-center gap-2 bg-background/80 backdrop-blur-sm border-accent/30 hover:border-accent"
-          >
-            <span className="font-mono">{user?.profile?.username ? user.profile.username.charAt(0).toUpperCase() + user.profile.username.slice(1) : user?.email?.split('@')[0] || 'User'}</span>
-            <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="font-mono">
-          <DropdownMenuItem 
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={handleProfileClick}
-          >
-            <User size={16} />
-            <span>Profile</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
-            <Settings size={16} />
-            <span>Settings</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="flex items-center gap-2 text-destructive hover:text-destructive cursor-pointer"
-            onClick={handleSignOut}
-          >
-            <LogOut size={16} />
-            <span>Sign Out</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <header className="fixed top-0 right-0 z-50 flex items-center gap-2 p-4">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => setIsSettingsOpen(true)}
+        className="bg-background/80 backdrop-blur-sm border-accent/30 hover:border-accent"
+        aria-label="Open settings"
+      >
+        <Settings size={18} />
+      </Button>
 
-      <ProfileModal 
-        isOpen={isProfileModalOpen} 
-        onClose={() => setIsProfileModalOpen(false)} 
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className="flex items-center gap-1.5 rounded-md px-3 py-2 font-mono text-sm text-destructive transition-colors hover:bg-destructive/10"
+      >
+        <LogOut size={16} />
+        <span>Sign Out</span>
+      </button>
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </header>
   );
