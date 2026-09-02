@@ -6,11 +6,11 @@ import api from '../services/api';
 type User = {
   id: string;
   email: string;
+  authProvider: 'local' | 'google';
   createdAt: string;
   profile?: {
     username?: string;
     dateOfBirth?: string;
-    location?: string;
     isProfileComplete: boolean;
   };
 };
@@ -20,9 +20,10 @@ type AuthContextType = {
   isLoading: boolean;
   isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, fullName: string, dateOfBirth: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (profileData: { username: string; dateOfBirth: string; location: string }) => Promise<void>;
+  updateProfile: (profileData: { username?: string; dateOfBirth: string }) => Promise<void>;
   error: string | null;
 };
 
@@ -67,14 +68,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Register user
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, fullName: string, dateOfBirth: string) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const res = await api.post('/auth/register', { 
-        email, 
-        password 
+      const res = await api.post('/auth/register', {
+        email,
+        password,
+        fullName,
+        dateOfBirth
       });
       
       const { token, user } = res.data;
@@ -126,6 +129,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Login or register via a Google ID token credential
+  const loginWithGoogle = async (credential: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await api.post('/auth/google', { credential });
+
+      const { token, user } = res.data;
+
+      // Save token to local storage
+      localStorage.setItem('token', token);
+
+      // Set default axios headers
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      setUser(user);
+      setIsLoggedIn(true);
+      setIsLoading(false);
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      setError(error.response?.data?.error || 'Google sign-in failed');
+      setIsLoading(false);
+      throw error;
+    }
+  };
+
   // Logout user
   const logout = () => {
     localStorage.removeItem('token');
@@ -135,7 +165,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Update user profile
-  const updateProfile = async (profileData: { username: string; dateOfBirth: string; location: string }) => {
+  const updateProfile = async (profileData: { username?: string; dateOfBirth: string }) => {
     setIsLoading(true);
     setError(null);
     
@@ -161,6 +191,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoggedIn,
         login,
         register,
+        loginWithGoogle,
         logout,
         updateProfile,
         error

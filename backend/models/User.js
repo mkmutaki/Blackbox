@@ -9,9 +9,19 @@ const UserSchema = new mongoose.Schema({
     trim: true,
     lowercase: true
   },
-  password: { 
-    type: String, 
-    required: true 
+  password: {
+    type: String,
+    required: function() { return !this.googleId; }
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
   },
   profile: {
     username: {
@@ -41,8 +51,8 @@ const UserSchema = new mongoose.Schema({
 
 // Hash the password before saving
 UserSchema.pre('save', async function(next) {
-  // Only hash the password if it's modified (or new)
-  if (!this.isModified('password')) return next();
+  // Only hash the password if it's set and modified (Google-only accounts have no password)
+  if (!this.password || !this.isModified('password')) return next();
   
   try {
     // Generate salt and hash
@@ -56,6 +66,7 @@ UserSchema.pre('save', async function(next) {
 
 // Compare password method
 UserSchema.methods.comparePassword = async function(candidatePassword) {
+  if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
 };
 

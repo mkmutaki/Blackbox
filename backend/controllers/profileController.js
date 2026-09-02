@@ -5,11 +5,11 @@ const User = require('../models/User');
 // @access  Private
 const updateProfile = async (req, res) => {
   try {
-    const { username, dateOfBirth, location } = req.body;
+    const { username, dateOfBirth } = req.body;
 
     // Validate inputs
-    if (!username || !dateOfBirth || !location) {
-      return res.status(400).json({ error: 'Username, date of birth, and location are required' });
+    if (!dateOfBirth) {
+      return res.status(400).json({ error: 'Date of birth is required' });
     }
 
     // Validate date of birth
@@ -23,15 +23,19 @@ const updateProfile = async (req, res) => {
       return res.status(400).json({ error: 'Date of birth cannot be in the future' });
     }
 
-    // Update user profile
+    // Update user profile (username is only overwritten if explicitly provided,
+    // e.g. Google sign-ups already have it set from their Google account)
+    const update = {
+      'profile.dateOfBirth': birthDate,
+      'profile.isProfileComplete': true
+    };
+    if (username && username.trim()) {
+      update['profile.username'] = username.trim();
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       req.user.userId,
-      {
-        'profile.username': username.trim(),
-        'profile.dateOfBirth': birthDate,
-        'profile.location': location.trim(),
-        'profile.isProfileComplete': true
-      },
+      update,
       { new: true, select: '-password' }
     );
 

@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 // Pages
 import Index from "./pages/Index";
@@ -22,43 +23,45 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <RecordingProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter basename={import.meta.env.PROD ? '/Blackbox' : ''}>
-            <Header />
-            <Routes>
-              {/* Protected routes */}
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                }
-              />
-              
-              {/* Public routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              {/* Catch-all route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+  <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <RecordingProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter basename={import.meta.env.PROD ? '/Blackbox' : ''}>
+              <Header />
+              <Routes>
+                {/* Protected routes */}
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  }
+                />
 
-            {/* Auto-logout timer - only shows when user is authenticated */}
-            <LogoutTimer 
-              timeoutMinutes={5} 
-              showWarningAt={120} // 2 minutes warning
-            />
-          </BrowserRouter>
-        </TooltipProvider>
-      </RecordingProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+                {/* Public routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+
+                {/* Catch-all route */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+
+              {/* Auto-logout timer - only shows when user is authenticated */}
+              <LogoutTimer
+                timeoutMinutes={5}
+                showWarningAt={120} // 2 minutes warning
+              />
+            </BrowserRouter>
+          </TooltipProvider>
+        </RecordingProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </GoogleOAuthProvider>
 );
 
 export default App;
