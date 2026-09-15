@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blackbox — Video diaries, kept safe</title>
+<meta name="description" content="Blackbox is a private place to record short video entries about your day — and to decide who receives them, one day, in your own voice.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="nav">
+  <span class="nav__brand">blackbox</span>
+  <div class="nav__right">
+    <span class="badge-beta">Early access</span>
+    <a class="btn-outline" href="#">Try the beta <i class="ph ph-arrow-up-right"></i></a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <p class="hero__kicker">A safe keep for video diaries</p>
+    <h1 class="hero__title">One day they&rsquo;ll want to hear your voice.</h1>
+    <p class="hero__subtitle">Record a minute of today. Seal it. Choose who opens it, and when.</p>
+
+    <div class="terminal">
+      <div class="terminal__titlebar">
+        <span class="terminal__dot"></span>
+        <span class="terminal__dot"></span>
+        <span class="terminal__dot terminal__dot--accent"></span>
+        <span class="terminal__label">what blackbox does</span>
+      </div>
+      <div class="terminal__body" id="terminal-body" aria-live="polite"></div>
+    </div>
+
+    <div class="cta-row">
+      <a class="btn-outline" href="#"><i class="ph ph-record"></i>Start recording &mdash; free</a>
+      <a class="btn-ghost" href="#privacy">See how it&rsquo;s protected</a>
+    </div>
+  </section>
+
+  <section class="banner">
+    <div class="banner__info">
+      <i class="ph ph-device-mobile-camera banner__icon"></i>
+      <div>
+        <p class="banner__title">The mobile app is coming</p>
+        <p class="banner__desc">iOS and Android &mdash; record wherever the moment happens.</p>
+      </div>
+    </div>
+    <span class="badge-soon">Soon</span>
+  </section>
+
+  <section class="privacy" id="privacy">
+    <h2 class="privacy__title">A black box, not a feed</h2>
+    <p class="privacy__subtitle">Nothing you record is public, promoted, or read by us.</p>
+    <div class="privacy-grid">
+      <div class="privacy-card">
+        <i class="ph ph-lock-key privacy-card__icon"></i>
+        <p class="privacy-card__title">Sealed on your device</p>
+        <p class="privacy-card__desc">Entries are encrypted before upload. We store the box; you hold the key.</p>
+      </div>
+      <div class="privacy-card">
+        <i class="ph ph-eye-slash privacy-card__icon"></i>
+        <p class="privacy-card__title">No eyes but yours</p>
+        <p class="privacy-card__desc">Never scanned for ads, never used to train models, never shown to strangers.</p>
+      </div>
+      <div class="privacy-card">
+        <i class="ph ph-hand-heart privacy-card__icon"></i>
+        <p class="privacy-card__title">Passed on, on your terms</p>
+        <p class="privacy-card__desc">Name who inherits an entry and the moment it should reach them.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <span>blackbox &mdash; beta 0.4</span>
+  <div class="site-footer__links">
+    <a href="#">Privacy policy</a>
+    <a href="#">Contact</a>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
