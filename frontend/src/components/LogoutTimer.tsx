@@ -2,6 +2,7 @@
 import { useLogoutTimer } from '@/hooks/useLogoutTimer';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 
 interface LogoutTimerProps {
@@ -15,10 +16,12 @@ export const LogoutTimer = ({
   showWarningAt = 120, // 2 minutes warning
   className = ""
 }: LogoutTimerProps) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const location = useLocation();
   const { timeRemaining, formattedTime, isActive, startTimer, resetTimer } = useLogoutTimer({
     timeoutMinutes,
     onTimeout: () => {
+      logout();
       toast({
         title: "Session Expired",
         description: "You have been logged out due to inactivity.",
@@ -69,7 +72,7 @@ export const LogoutTimer = ({
   }, [isActive, resetTimer]);
 
   // Don't render if user is not authenticated
-  if (!user || !isActive) {
+  if (!user || !isActive || location.pathname !== '/home') {
     return null;
   }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecording } from '@/context/RecordingContext';
 import { LogOut, Settings } from 'lucide-react';
@@ -11,10 +11,11 @@ export function Header() {
   const { logout, isLoggedIn } = useAuth();
   const { isRecording } = useRecording();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Hide header when not logged in or when recording
-  if (!isLoggedIn || isRecording) return null;
+  // App controls only belong on the protected app route.
+  if (!isLoggedIn || isRecording || location.pathname !== '/home') return null;
 
   const handleSignOut = () => {
     logout();
@@ -22,7 +23,7 @@ export function Header() {
       title: "Signed out successfully",
       description: "You have been signed out of your account."
     });
-    navigate('/login');
+    navigate('/');
   };
 
   return (

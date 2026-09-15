@@ -7,6 +7,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 // Pages
 import Index from "./pages/Index";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -33,9 +34,11 @@ const App = () => (
             <BrowserRouter basename={import.meta.env.PROD ? '/Blackbox' : ''}>
               <Header />
               <Routes>
+                <Route path="/" element={<Landing />} />
+
                 {/* Protected routes */}
                 <Route
-                  path="/"
+                  path="/home"
                   element={
                     <ProtectedRoute>
                       <Index />

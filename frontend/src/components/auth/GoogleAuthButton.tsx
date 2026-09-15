@@ -24,7 +24,7 @@ export function GoogleAuthButton({ text = 'continue_with', onError }: GoogleAuth
         title: 'Signed in with Google',
         description: 'Welcome to Blackbox!',
       });
-      navigate('/');
+      navigate('/home');
     } catch (error: any) {
       onError(error.response?.data?.error || 'Google sign-in failed. Please try again.');
     }
