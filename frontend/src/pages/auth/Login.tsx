@@ -32,10 +32,18 @@ export default function Login() {
     setIsLoading(true);
     
     try {
-      await login(email, password);
+      const loggedInUser = await login(email, password);
+      const username =
+        loggedInUser?.username ||
+        loggedInUser?.user?.username ||
+        loggedInUser?.data?.username ||
+        loggedInUser?.data?.user?.username;
+
       toast({
         title: 'Login successful',
-        description: 'Welcome back to Blackbox!',
+        description: username
+          ? `Welcome back, ${username}!`
+          : 'Welcome back!',
       });
       navigate('/home');
     } catch (error: any) {
@@ -52,9 +60,9 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-mono font-bold">Welcome Back</h1>
+          <h1 className="text-3xl font-mono font-bold">Welcome to Blackb0x</h1>
           <p className="mt-2 text-muted-foreground">
-            Sign in to access your mission logs
+            Your keepsafe for life's daily endeavours.
           </p>
         </div>
 
@@ -119,7 +127,7 @@ export default function Login() {
             <p className="text-muted-foreground">
               Don't have an account?{' '}
               <Link to="/register" className="font-semibold text-accent hover:underline">
-                Register here
+                Sign up here
               </Link>
             </p>
           </div>
