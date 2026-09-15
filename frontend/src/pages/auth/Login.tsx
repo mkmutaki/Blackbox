@@ -37,7 +37,7 @@ export default function Login() {
         title: 'Login successful',
         description: 'Welcome back to Blackbox!',
       });
-      navigate('/');
+      navigate('/home');
     } catch (error: any) {
       setError(
         error.response?.data?.error || 

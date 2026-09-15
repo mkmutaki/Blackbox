@@ -105,7 +105,7 @@ export default function Register() {
         title: 'Account created successfully',
         description: 'Welcome to Blackbox!',
       });
-      navigate('/');
+      navigate('/home');
     } catch (error: any) {
       setError(
         error.response?.data?.error ||
