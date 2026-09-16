@@ -83,7 +83,7 @@ export default function Landing() {
   return (
     <div className={styles.page}>
       <header className={styles.nav}>
-        <span className={styles.brand}>blackbox</span>
+        <span className={styles.brand}>blackb0x</span>
         <div className={styles.navRight}>
           <span className={styles.beta}>Early access</span>
           <Link className={styles.outlineButton} to={appPath}>
@@ -111,7 +111,7 @@ export default function Landing() {
             <Smartphone className={styles.bannerIcon} />
             <div>
               <p className={styles.bannerTitle}>The mobile app is coming</p>
-              <p className={styles.bannerDescription}>iOS and Android — record wherever the moment happens.</p>
+              <p className={styles.bannerDescription}>iOS only — record wherever the moment happens.</p>
             </div>
           </div>
           <span className={styles.soon}>Soon</span>

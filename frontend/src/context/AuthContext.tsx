@@ -19,7 +19,7 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   isLoggedIn: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, fullName: string, dateOfBirth: string) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
@@ -121,6 +121,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(user);
       setIsLoggedIn(true);
       setIsLoading(false);
+
+      return user;
     } catch (error: any) {
       console.error('Login error:', error);
       setError(error.response?.data?.error || 'Invalid credentials');

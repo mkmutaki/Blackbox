@@ -33,11 +33,7 @@ export default function Login() {
     
     try {
       const loggedInUser = await login(email, password);
-      const username =
-        loggedInUser?.username ||
-        loggedInUser?.user?.username ||
-        loggedInUser?.data?.username ||
-        loggedInUser?.data?.user?.username;
+      const username = loggedInUser?.profile?.username;
 
       toast({
         title: 'Login successful',
