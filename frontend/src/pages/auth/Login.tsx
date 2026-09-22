@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
+import { PixelGasBackground } from '@/components/PixelGasBackground';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -53,7 +54,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-background">
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <PixelGasBackground className="bg-black" />
+
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-mono font-bold">Welcome to Blackb0x</h1>
