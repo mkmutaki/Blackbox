@@ -9,10 +9,18 @@ type User = {
   authProvider: 'local' | 'google';
   createdAt: string;
   profile?: {
+    fullName?: string;
     username?: string;
     dateOfBirth?: string;
+    autoLockMinutes?: number;
+    onboardingComplete?: boolean;
     isProfileComplete: boolean;
   };
+};
+
+export type OnboardingAnswers = {
+  username: string;
+  autoLockMinutes: number;
 };
 
 type AuthContextType = {
@@ -24,6 +32,7 @@ type AuthContextType = {
   loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   updateProfile: (profileData: { username?: string; dateOfBirth: string }) => Promise<void>;
+  completeOnboarding: (answers: OnboardingAnswers) => Promise<void>;
   error: string | null;
 };
 
@@ -185,6 +194,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Save onboarding answers and mark the flow as finished
+  const completeOnboarding = async (answers: OnboardingAnswers) => {
+    setError(null);
+
+    try {
+      const res = await api.post('/profile/onboarding', answers);
+      setUser(res.data.user);
+    } catch (error: any) {
+      console.error('Onboarding error:', error);
+      setError(error.response?.data?.error || 'Could not save your answers');
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -196,6 +219,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loginWithGoogle,
         logout,
         updateProfile,
+        completeOnboarding,
         error
       }}
     >

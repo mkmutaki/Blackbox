@@ -24,10 +24,29 @@ const UserSchema = new mongoose.Schema({
     default: 'local'
   },
   profile: {
+    // Immutable: captured once at sign-up and never editable afterwards.
+    fullName: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    // The display name used on mission logs. Chosen during onboarding, editable later.
     username: {
       type: String,
       trim: true,
       default: null
+    },
+    // Idle timeout in minutes before the session auto-locks. 0 means never.
+    autoLockMinutes: {
+      type: Number,
+      enum: [0, 5, 15, 30],
+      default: 5
+    },
+    // Defaults to true so accounts created before onboarding existed are never
+    // shown the flow. Registration explicitly sets it to false for new users.
+    onboardingComplete: {
+      type: Boolean,
+      default: true
     },
     dateOfBirth: {
       type: Date,

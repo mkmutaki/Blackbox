@@ -6,7 +6,7 @@ import { useLocation } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 
 interface LogoutTimerProps {
-  timeoutMinutes?: number;
+  timeoutMinutes?: number; // fallback when the account has no saved preference
   showWarningAt?: number; // seconds before timeout to show warning
   className?: string;
 }
@@ -18,8 +18,14 @@ export const LogoutTimer = ({
 }: LogoutTimerProps) => {
   const { user, logout } = useAuth();
   const location = useLocation();
+
+  // The onboarding "lock after idle" answer wins; 0 means never auto-lock.
+  const savedMinutes = user?.profile?.autoLockMinutes;
+  const effectiveMinutes = savedMinutes ?? timeoutMinutes;
+  const autoLockEnabled = effectiveMinutes > 0;
+
   const { timeRemaining, formattedTime, isActive, startTimer, resetTimer } = useLogoutTimer({
-    timeoutMinutes,
+    timeoutMinutes: effectiveMinutes,
     onTimeout: () => {
       logout();
       toast({
@@ -32,10 +38,10 @@ export const LogoutTimer = ({
 
   // Start timer when user logs in
   useEffect(() => {
-    if (user) {
+    if (user && autoLockEnabled) {
       startTimer();
     }
-  }, [user, startTimer]);
+  }, [user, autoLockEnabled, startTimer]);
 
   // Show warning toast when approaching timeout
   useEffect(() => {

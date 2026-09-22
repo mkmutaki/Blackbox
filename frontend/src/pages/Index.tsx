@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import VideoRecorder from "@/components/VideoRecorder";
 import EntryList from "@/components/EntryList";
+import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { useRecording } from "@/context/RecordingContext";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -13,6 +14,15 @@ const Index = () => {
   
   // Get user data for username
   const { user } = useAuth();
+
+  // Shown to newly registered accounts only; completing or skipping clears the flag.
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (user?.profile?.onboardingComplete === false) {
+      setShowOnboarding(true);
+    }
+  }, [user]);
   
   // Sync the local state with the context state
   useEffect(() => {
@@ -26,6 +36,15 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Mounted only once the user is loaded, so the callsign field can
+          prefill from their profile. */}
+      {showOnboarding && (
+        <OnboardingFlow
+          isOpen
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
+
       {isRecording ? (
         <VideoRecorder />
       ) : (

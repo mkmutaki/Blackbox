@@ -71,4 +71,60 @@ const getProfile = async (req, res) => {
   }
 };
 
-module.exports = { updateProfile, getProfile };
+// Idle-lock intervals the client is allowed to choose from. 0 means never.
+const AUTO_LOCK_CHOICES = [0, 5, 15, 30];
+
+// @route   POST /api/profile/onboarding
+// @desc    Persist onboarding answers and mark the flow as finished
+// @access  Private
+const completeOnboarding = async (req, res) => {
+  try {
+    const { username, autoLockMinutes } = req.body;
+
+    const update = { 'profile.onboardingComplete': true };
+
+    if (username !== undefined) {
+      const trimmed = String(username).trim();
+
+      if (!trimmed) {
+        return res.status(400).json({ error: 'Callsign cannot be empty' });
+      }
+
+      if (trimmed.length > 32) {
+        return res.status(400).json({ error: 'Callsign must be 32 characters or fewer' });
+      }
+
+      update['profile.username'] = trimmed;
+    }
+
+    if (autoLockMinutes !== undefined) {
+      const minutes = Number(autoLockMinutes);
+
+      if (!AUTO_LOCK_CHOICES.includes(minutes)) {
+        return res.status(400).json({ error: 'Invalid auto-lock interval' });
+      }
+
+      update['profile.autoLockMinutes'] = minutes;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.userId,
+      update,
+      { new: true, select: '-password' }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      message: 'Onboarding complete',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Complete onboarding error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+module.exports = { updateProfile, getProfile, completeOnboarding };

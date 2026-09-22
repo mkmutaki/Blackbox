@@ -37,9 +37,11 @@ const register = async (req, res) => {
       email,
       password,
       profile: {
+        fullName: fullName.trim(),
         username: fullName.trim(),
         dateOfBirth: birthDate,
-        isProfileComplete: true
+        isProfileComplete: true,
+        onboardingComplete: false
       }
     });
     await user.save();
@@ -148,11 +150,16 @@ const googleAuth = async (req, res) => {
         user.googleId = googleId;
         await user.save();
       } else {
+        const googleName = name || email.split('@')[0];
         user = new User({
           email,
           googleId,
           authProvider: 'google',
-          profile: { username: name || email.split('@')[0] }
+          profile: {
+            fullName: googleName,
+            username: googleName,
+            onboardingComplete: false
+          }
         });
         await user.save();
       }

@@ -103,6 +103,21 @@ export function ProfileSettings() {
       )}
 
       <div className="space-y-2">
+        <Label htmlFor="fullName">Full name</Label>
+        <Input
+          id="fullName"
+          type="text"
+          value={user?.profile?.fullName || ''}
+          readOnly
+          disabled
+          className="font-mono"
+        />
+        <p className="text-xs text-muted-foreground">
+          Set when you created your account and cannot be changed.
+        </p>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
         <Input
           id="username"
@@ -113,6 +128,9 @@ export function ProfileSettings() {
           className="font-mono"
           disabled={isLoading}
         />
+        <p className="text-xs text-muted-foreground">
+          The name stamped on your mission logs.
+        </p>
       </div>
 
       <div className="space-y-2">
