@@ -15,7 +15,7 @@ type Video = {
   iv: string;
   jwk: any;
   entryNumber: number;
-  solDay: number;
+  synodicDay: number;
   category: string;
 };
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft, Save } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getSynodicDay } from '@/lib/utils';
 import { toast } from "sonner";
 import { post } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,85 @@ const generateEncryptionKey = async () => {
 const exportKey = async (key: CryptoKey) => {
   const exported = await window.crypto.subtle.exportKey('jwk', key);
   return exported;
+};
+
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+type OverlayState = {
+  missionDay: number;
+  currentTime: string;
+  recordingSeconds: number;
+  username: string;
+  logNumber: string;
+  randomDigits: string;
+};
+
+const drawOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number, state: OverlayState) => {
+  const scale = width / 1920;
+  const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+  const textColor = 'rgba(255,255,255,0.75)';
+  const padX = 64 * scale;
+  const padY = 48 * scale;
+
+  ctx.save();
+  ctx.textBaseline = 'top';
+
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillRect(width * 0.025, height * 0.02, 2 * scale, height * 0.96);
+  ctx.fillRect(width * 0.975 - 2 * scale, height * 0.02, 2 * scale, height * 0.96);
+
+  ctx.shadowColor = 'rgba(255,255,255,0.5)';
+  ctx.shadowBlur = 6 * scale;
+  ctx.fillStyle = textColor;
+  ctx.font = `${22 * scale}px ${mono}`;
+  ctx.fillText('MISSION DAY', padX, padY);
+
+  const synodicText = `SYNODIC ${state.missionDay}`;
+  ctx.font = `bold ${32 * scale}px ${mono}`;
+  const synodicWidth = ctx.measureText(synodicText).width;
+  const synodicBoxY = padY + 34 * scale;
+  const boxPadX = 12 * scale;
+  const boxPadY = 8 * scale;
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(38,38,38,0.5)';
+  ctx.fillRect(padX - boxPadX, synodicBoxY - boxPadY, synodicWidth + boxPadX * 2, 32 * scale + boxPadY * 2);
+
+  ctx.shadowColor = 'rgba(255,255,255,0.5)';
+  ctx.shadowBlur = 6 * scale;
+  ctx.fillStyle = textColor;
+  ctx.fillText(synodicText, padX, synodicBoxY);
+
+  const recY = synodicBoxY + 56 * scale;
+  ctx.fillStyle = '#ef4444';
+  ctx.shadowColor = '#ef4444';
+  ctx.shadowBlur = 8 * scale;
+  ctx.beginPath();
+  ctx.arc(padX + 6 * scale, recY + 12 * scale, 6 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.font = `bold ${26 * scale}px ${mono}`;
+  ctx.fillText(`REC ${formatTime(state.recordingSeconds)}`, padX + 22 * scale, recY);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = textColor;
+  ctx.shadowColor = 'rgba(255,255,255,0.5)';
+  ctx.shadowBlur = 6 * scale;
+  ctx.font = `${28 * scale}px ${mono}`;
+  ctx.fillText(`TIME ${state.currentTime.slice(0, 2)}:${state.currentTime.slice(2, 4)}`, width - padX, padY);
+
+  ctx.font = `${18 * scale}px ${mono}`;
+  ctx.fillText(`LOG ENTRY > ${state.username} #${state.logNumber}`, width - padX, padY + 38 * scale);
+  ctx.textAlign = 'left';
+
+  const connectedSuffix = new Date().toISOString().replace(/[-:]/g, '').slice(0, 10);
+  ctx.font = `${16 * scale}px ${mono}`;
+  ctx.fillText(`CONNECTED-${connectedSuffix}${state.randomDigits}`, padX, height - 64 * scale);
+
+  ctx.restore();
 };
 
 const encryptVideo = async (blob: Blob) => {
@@ -60,7 +139,15 @@ const VideoRecorder = () => {
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordedBlobRef = useRef<Blob | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
-  
+  const animationFrameRef = useRef<number | null>(null);
+  const canvasStreamRef = useRef<MediaStream | null>(null);
+  const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
+  const recordingVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const missionDayRef = useRef(0);
+  const currentTimeRef = useRef("");
+  const randomDigitsRef = useRef("0000");
+  const recordingTimeRef = useRef(0);
+
   const { isLoggedIn, user } = useAuth();
   const navigate = useNavigate();
 
@@ -70,11 +157,10 @@ const VideoRecorder = () => {
   const [randomDigits, setRandomDigits] = useState("0000");
 
   useEffect(() => {
-    const startDate = new Date('2025-01-01');
-    const today = new Date();
-    const diffTime = today.getTime() - startDate.getTime(); 
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
-    setMissionDay(diffDays + 1);
+    // Same rule the backend stamps entries with: days since Jan 1 of this year.
+    const day = getSynodicDay();
+    setMissionDay(day);
+    missionDayRef.current = day;
   }, []);
 
   useEffect(() => {
@@ -95,20 +181,17 @@ const VideoRecorder = () => {
       const now = new Date();
       const hours = now.getHours().toString().padStart(2, '0');
       const minutes = now.getMinutes().toString().padStart(2, '0');
-      setCurrentTime(`${hours}${minutes}`);
-      
+      const time = `${hours}${minutes}`;
+      setCurrentTime(time);
+      currentTimeRef.current = time;
+
       const randomNumber = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
       setRandomDigits(randomNumber);
+      randomDigitsRef.current = randomNumber;
     }, 1000);
 
     return () => clearInterval(timer);
   }, []);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const startCamera = async () => {
     try {
@@ -165,18 +248,33 @@ const VideoRecorder = () => {
     }
   };
 
+  const stopOverlayCapture = () => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    canvasStreamRef.current?.getTracks().forEach(track => track.stop());
+    canvasStreamRef.current = null;
+    recordingVideoTrackRef.current?.stop();
+    recordingVideoTrackRef.current = null;
+    if (hiddenVideoRef.current) {
+      hiddenVideoRef.current.srcObject = null;
+      hiddenVideoRef.current = null;
+    }
+  };
+
   const startRecording = async () => {
     resetTimer();
-    
+
     if (!streamRef.current) {
       toast.error("No camera access. Please allow camera access and try again.");
       startCamera();
       return;
     }
-    
+
     try {
       let audioTracks: MediaStreamTrack[] = [];
-      
+
       if (audioStreamRef.current) {
         audioTracks = audioStreamRef.current.getAudioTracks();
         audioTracks.forEach(track => {
@@ -187,22 +285,57 @@ const VideoRecorder = () => {
         audioStreamRef.current = audioStream;
         audioTracks = audioStream.getAudioTracks();
       }
-      
-      const videoTracks = streamRef.current.getVideoTracks();
-      
+
+      // Composite the camera frame + HUD onto a canvas so the overlay is
+      // burned into the recorded pixels; MediaRecorder never sees the DOM.
+      const sourceVideoTrack = streamRef.current.getVideoTracks()[0];
+      const recordingVideoTrack = sourceVideoTrack.clone();
+      if (recordingVideoTrack.applyConstraints) {
+        await recordingVideoTrack.applyConstraints({
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 }
+        }).catch(e => console.log('Could not apply optimal recording constraints:', e));
+      }
+      recordingVideoTrackRef.current = recordingVideoTrack;
+
+      const hiddenVideo = document.createElement('video');
+      hiddenVideo.muted = true;
+      hiddenVideo.playsInline = true;
+      hiddenVideo.srcObject = new MediaStream([recordingVideoTrack]);
+      await hiddenVideo.play();
+      hiddenVideoRef.current = hiddenVideo;
+
+      const { width, height } = recordingVideoTrack.getSettings();
+      const canvas = document.createElement('canvas');
+      canvas.width = width || 1280;
+      canvas.height = height || 720;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Canvas 2D context unavailable');
+      }
+
+      recordingTimeRef.current = 0;
+
+      const drawFrame = () => {
+        ctx.drawImage(hiddenVideo, 0, 0, canvas.width, canvas.height);
+        drawOverlay(ctx, canvas.width, canvas.height, {
+          missionDay: missionDayRef.current,
+          currentTime: currentTimeRef.current,
+          recordingSeconds: recordingTimeRef.current,
+          username: (user?.profile?.username || 'GHOST').toUpperCase(),
+          logNumber,
+          randomDigits: randomDigitsRef.current,
+        });
+        animationFrameRef.current = requestAnimationFrame(drawFrame);
+      };
+      drawFrame();
+
+      const canvasStream = canvas.captureStream(30);
+      canvasStreamRef.current = canvasStream;
+
       const recorderStream = new MediaStream([
-        ...videoTracks.map(track => {
-          const videoTrackClone = track.clone();
-          
-          if (videoTrackClone.applyConstraints) {
-            videoTrackClone.applyConstraints({
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-              frameRate: { ideal: 30 }
-            }).catch(e => console.log('Could not apply optimal recording constraints:', e));
-          }
-          return videoTrackClone;
-        }),
+        ...canvasStream.getVideoTracks(),
         ...audioTracks
       ]);
 
@@ -221,6 +354,8 @@ const VideoRecorder = () => {
       };
 
       mediaRecorder.onstop = async () => {
+        stopOverlayCapture();
+
         if (audioStreamRef.current) {
           audioStreamRef.current.getAudioTracks().forEach(track => {
             track.enabled = false;
@@ -249,8 +384,6 @@ const VideoRecorder = () => {
             toast.success("Recording saved successfully");
           };
         }
-        
-        setVideoTitle(`Mission Log Entry`);
       };
 
       mediaRecorder.start(1000); 
@@ -261,11 +394,16 @@ const VideoRecorder = () => {
       toast.success("Recording started");
 
       recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prevTime => prevTime + 1);
+        setRecordingTime(prevTime => {
+          const next = prevTime + 1;
+          recordingTimeRef.current = next;
+          return next;
+        });
       }, 1000);
     } catch (err) {
       console.error('Error starting recording:', err);
       toast.error("Could not access microphone. Please check your permissions.");
+      stopOverlayCapture();
     }
   };
 
@@ -314,18 +452,23 @@ const VideoRecorder = () => {
       toast.error("No recording to save");
       return;
     }
-    
+
+    if (!videoTitle.trim()) {
+      toast.error("Please enter a title for your mission log");
+      return;
+    }
+
     try {
       setIsSaving(true);
-      
+
       const blob = recordedBlobRef.current;
       const { encryptedBlob, iv, jwk } = await encryptVideo(blob);
-      
+
       const formData = new FormData();
       formData.append('file', encryptedBlob, `encrypted_video_${Date.now()}.dat`);
       formData.append('iv', iv);
       formData.append('jwk', JSON.stringify(jwk));
-      formData.append('title', videoTitle || `Mission Log Entry`);
+      formData.append('title', videoTitle.trim());
 
       const response = await post('/videos', formData, {
         headers: {
@@ -334,9 +477,8 @@ const VideoRecorder = () => {
       });
       
       toast.success("Recording saved to database");
-      
+
       setGlobalIsRecording(false);
-      navigate('/');
     } catch (error) {
       console.error('Error saving recording:', error);
       toast.error("Error saving recording to server");
@@ -374,9 +516,8 @@ const VideoRecorder = () => {
 
   const goBack = () => {
     resetTimer();
-    
+
     setGlobalIsRecording(false);
-    navigate('/');
   };
 
   const seekVideo = (seconds: number) => {
@@ -410,7 +551,7 @@ const VideoRecorder = () => {
 
       <div className="absolute top-4 left-4 sm:top-6 sm:left-16 space-y-1 font-mono z-10">
         <div className="text-sm sm:text-lg text-grey-500 text-shadow text-shadow-white">MISSION DAY</div>
-        <div className="text-lg sm:text-3xl font-bold bg-secondary/50 px-2 sm:px-3 py-1 rounded text-shadow text-shadow-white">SOL {missionDay}</div>
+        <div className="text-lg sm:text-3xl font-bold bg-secondary/50 px-2 sm:px-3 py-1 rounded text-shadow text-shadow-white">SYNODIC {missionDay}</div>
         {isRecording && (
           <div className="flex items-center gap-2 mt-2">
             <Circle size={10} className="text-red-500 animate-pulse sm:w-3 sm:h-3" fill="currentColor" />

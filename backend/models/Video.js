@@ -13,7 +13,7 @@ const VideoSchema = new mongoose.Schema({
   },
   // Fields for additional requirements
   entryNumber: { type: Number },
-  solDay: { type: Number },
+  synodicDay: { type: Number },
   category: { type: String }
 });
 

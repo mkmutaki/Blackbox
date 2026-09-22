@@ -19,13 +19,13 @@ const s3 = new AWS.S3({
 // Apply auth middleware to all video routes
 router.use(authMiddleware);
 
-// Helper function to calculate SOL day (days since January 1st of current year)
-const calculateSolDay = () => {
+// Helper function to calculate the synodic day (days since January 1st of current year)
+const calculateSynodicDay = () => {
   const now = new Date();
   const startOfYear = new Date(now.getFullYear(), 0, 1);
   const diffInMs = now - startOfYear;
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-  return diffInDays + 1; // +1 because SOL days start from 1
+  return diffInDays + 1; // +1 because synodic days start from 1
 };
 
 // @route   POST /api/videos
@@ -38,6 +38,10 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     if (!file || !iv || !jwk) {
       return res.status(400).json({ error: 'File, iv, and jwk are required' });
+    }
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
     }
 
     const s3Key = `videos/${userId}/${Date.now()}-${file.originalname}`;
@@ -55,7 +59,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       .limit(1);
     
     const entryNumber = lastEntry ? lastEntry.entryNumber + 1 : 1;
-    const solDay = calculateSolDay();
+    const synodicDay = calculateSynodicDay();
     
     const video = new Video({
       title,
@@ -64,8 +68,8 @@ router.post('/', upload.single('file'), async (req, res) => {
       jwk: JSON.parse(jwk),
       ownerId: userId,
       entryNumber,
-      solDay,
-      category: `SOL-${solDay}`
+      synodicDay,
+      category: `SYN-${synodicDay}`
     });
     
     await video.save();
@@ -98,7 +102,7 @@ router.get('/', async (req, res) => {
         jwk: v.jwk,
         createdAt: v.createdAt,
         entryNumber: v.entryNumber,
-        solDay: v.solDay,
+        synodicDay: v.synodicDay,
         category: v.category
       };
     });
@@ -135,7 +139,7 @@ router.get('/:id', async (req, res) => {
       jwk: video.jwk,
       createdAt: video.createdAt,
       entryNumber: video.entryNumber,
-      solDay: video.solDay,
+      synodicDay: video.synodicDay,
       category: video.category
     });
   } catch (err) {
