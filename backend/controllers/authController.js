@@ -1,8 +1,6 @@
 const jwt = require('jsonwebtoken');
-const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
-
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const googleAuthService = require('../services/googleAuth');
 
 // @route   POST /api/auth/register
 // @desc    Register a new user
@@ -123,11 +121,7 @@ const googleAuth = async (req, res) => {
 
     let payload;
     try {
-      const ticket = await googleClient.verifyIdToken({
-        idToken: credential,
-        audience: process.env.GOOGLE_CLIENT_ID
-      });
-      payload = ticket.getPayload();
+      payload = await googleAuthService.verifyGoogleToken(credential);
     } catch (verifyError) {
       console.error('Google token verification failed:', verifyError);
       return res.status(401).json({ error: 'Invalid Google credential' });

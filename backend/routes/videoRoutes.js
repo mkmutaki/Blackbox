@@ -1,20 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const AWS = require('aws-sdk');
 const Video = require('../models/Video');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const s3 = require('../services/s3Client');
 
 // Configure multer to store files in memory
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-
-// Configure AWS S3
-const s3 = new AWS.S3({
-  region: process.env.AWS_REGION,
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-});
 
 // Apply auth middleware to all video routes
 router.use(authMiddleware);

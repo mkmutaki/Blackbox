@@ -171,10 +171,12 @@ const EntryList = () => {
                       onChange={(e) => setEditingTitle(e.target.value)}
                       className="bg-transparent border-b border-accent/50 focus:border-accent outline-none px-1 py-0.5 font-mono text-lg"
                       autoFocus
+                      data-testid="edit-title-input"
                     />
                     <button
                       onClick={() => saveEdit(video.id)}
                       className="p-1 hover:text-accent"
+                      data-testid="confirm-edit-title"
                     >
                       <Check size={16} />
                     </button>
@@ -187,6 +189,7 @@ const EntryList = () => {
                     <button
                       onClick={() => startEditing(video)}
                       className="p-1 text-muted hover:text-accent"
+                      data-testid="edit-video-title"
                     >
                       <Pencil size={16} />
                     </button>
@@ -221,6 +224,7 @@ const EntryList = () => {
                   variant="outline"
                   className="text-destructive hover:text-destructive"
                   onClick={() => deleteVideo(video.id)}
+                  data-testid="delete-video"
                 >
                   <Trash2 size={16} />
                 </Button>

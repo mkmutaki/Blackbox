@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { decryptVideo as decryptVideoPayload } from '@/lib/videoCrypto';
 
 interface VideoPlayerProps {
   title: string;
@@ -34,43 +35,23 @@ export function VideoPlayer({ title, url, iv, jwk, open, onClose }: VideoPlayerP
         if (!iv) throw new Error('Missing IV');
         if (!jwk) throw new Error('Missing JWK');
         if (!url) throw new Error('Missing URL');
-        
-        // Parse JWK if it's a string
-        const keyData = typeof jwk === 'string' ? JSON.parse(jwk) : jwk;
-        
-        // Convert IV hex string to Uint8Array
-        const ivHexPairs = iv.match(/.{1,2}/g) || [];
-        const ivArray = new Uint8Array(ivHexPairs.map(byte => parseInt(byte, 16)));
-        
-        // Import key for decryption
-        const key = await window.crypto.subtle.importKey(
-          'jwk',
-          keyData,
-          { name: 'AES-GCM', length: 256 },
-          false,
-          ['decrypt']
-        );
-        
+
         // Fetch encrypted data
         const response = await fetch(url);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
         }
-        
+
         const encryptedData = await response.arrayBuffer();
-        
+
         if (encryptedData.byteLength === 0) {
           throw new Error('Received empty file');
         }
-        
+
         // Decrypt the data
-        const decryptedData = await window.crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv: ivArray },
-          key,
-          encryptedData
-        );
-        
+        const decryptedData = await decryptVideoPayload(encryptedData, iv, jwk);
+
         // Create blob URL from decrypted data
         const decryptedBlob = new Blob([decryptedData], { type: 'video/webm' });
         const decryptedObjectUrl = URL.createObjectURL(decryptedBlob);

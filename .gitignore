@@ -11,7 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
-*.md
+
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 
 # Editor directories and files

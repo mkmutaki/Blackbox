@@ -7,19 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useRecording } from '@/context/RecordingContext';
 import { useLogoutTimer } from '@/hooks/useLogoutTimer';
-
-const generateEncryptionKey = async () => {
-  return await window.crypto.subtle.generateKey(
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt', 'decrypt']
-  );
-};
-
-const exportKey = async (key: CryptoKey) => {
-  const exported = await window.crypto.subtle.exportKey('jwk', key);
-  return exported;
-};
+import { encryptVideo } from '@/lib/videoCrypto';
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
@@ -98,25 +86,6 @@ const drawOverlay = (ctx: CanvasRenderingContext2D, width: number, height: numbe
   ctx.fillText(`CONNECTED-${connectedSuffix}${state.randomDigits}`, padX, height - 64 * scale);
 
   ctx.restore();
-};
-
-const encryptVideo = async (blob: Blob) => {
-  const iv = window.crypto.getRandomValues(new Uint8Array(12));
-  const key = await generateEncryptionKey();
-  const exportedKey = await exportKey(key);
-  const arrayBuffer = await blob.arrayBuffer();
-  const encryptedData = await window.crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    arrayBuffer
-  );
-  const encryptedBlob = new Blob([encryptedData], { type: 'application/octet-stream' });
-  
-  return {
-    encryptedBlob,
-    iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
-    jwk: exportedKey
-  };
 };
 
 const VideoRecorder = () => {
@@ -386,7 +355,7 @@ const VideoRecorder = () => {
         }
       };
 
-      mediaRecorder.start(1000); 
+      mediaRecorder.start(1000);
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
       setIsPaused(false);
@@ -629,6 +598,7 @@ const VideoRecorder = () => {
             onChange={handleTitleChange}
             placeholder="Enter a title for your recording"
             className="w-full bg-secondary/50 border border-accent/50 rounded px-3 py-2 font-mono text-center text-sm sm:text-base"
+            data-testid="video-title-input"
           />
         </div>
       )}
@@ -666,6 +636,7 @@ const VideoRecorder = () => {
               className="p-2 sm:p-3 rounded-full bg-success/20 hover:bg-success/40 text-success-foreground transition-all duration-300"
               disabled={isSaving}
               type="button"
+              data-testid="save-recording"
             >
               {isSaving ? (
                 <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-t-transparent rounded-full animate-spin" />
@@ -694,6 +665,7 @@ const VideoRecorder = () => {
             )}
             disabled={isSaving}
             type="button"
+            data-testid="record-toggle"
           >
             <Video size={20} className="sm:w-6 sm:h-6" />
           </button>
