@@ -7,7 +7,7 @@ A video-journal app. Users sign up (email + password, or Google), record video i
 - `landing/` — static landing page
 - `docs/` — **build output**, published by GitHub Pages. Generated, never edited by hand.
 
-Frontend deploys to GitHub Pages (`mkmutaki.github.io/Blackbox`), backend to Render. **The GitHub repo is public.** Default branch `main`; work happens on `develop`.
+Frontend deploys to GitHub Pages (`mkmutaki.github.io/Blackbox`), backend to Render. **The GitHub repo is public.** Default branch `main`; work happens on `develop` and `security_hardening`.
 
 ## Commands
 
@@ -46,8 +46,6 @@ Work top to bottom. Each step assumes the previous one landed.
 6. **Database migration** to `blackb0x` — last.
 
 ## Repo gotchas
-
-- **`.gitignore` contains `*.md`**, so any markdown a session creates is untracked by default and invisible to git. `README.md` and `frontend/README.md` predate that rule. Force-add docs that are meant to persist, or narrow the pattern.
 - `npm run deploy` copies `dist/` into `docs/`. It historically didn't clear the target first, which is how stale bundles accumulated there.
 - `backend/routes/videoRoutes.js` holds its route logic inline; controllers exist only for auth and profile. Splitting it out is planned, not done.
 - The backend has no startup validation of environment variables, and keeps serving after a failed database connection.
