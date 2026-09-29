@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, security_hardening]
+  pull_request:
+
+jobs:
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Lint, typecheck, backend/frontend/e2e tests, npm audit, and CodeQL land
+  # here as part of a later hardening pass (§5.H) — this workflow starts
+  # with just the secret scan so Group A ships something that actually runs.

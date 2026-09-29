@@ -3,7 +3,7 @@
 
 const TERMINAL_SCRIPT = [
   ['record', 'Open the camera. Talk about your day. Sixty seconds is plenty.'],
-  ['keep', 'It lands in your box, encrypted, out of everyone else’s reach.'],
+  ['keep', 'It lands in your box, encrypted, waiting for you.'],
   ['revisit', 'Scroll back through the ordinary days that turned out to matter.'],
   ['pass on', 'Choose who opens which entry, and when they get to.'],
 ];

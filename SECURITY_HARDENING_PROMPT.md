@@ -102,7 +102,7 @@ Confirmed by reading the working tree. Re-confirm each before fixing, and check 
 | SEC-20 | Low | `backend/controllers/profileController.js` vs `videoRoutes.js` | **Inconsistent input limits.** `completeOnboarding` caps username at 32 chars; `updateProfile` caps nothing; video `title` has no limit anywhere. |
 | SEC-21 | Low | `backend/routes/videoRoutes.js:57-61` | **`entryNumber` race.** Computed by reading the current max, so concurrent uploads collide. Data-integrity rather than security, but worth fixing while you're here. |
 | SEC-22 | Low | `backend/routes/videoRoutes.js:68` | `JSON.parse(jwk)` on unvalidated input throws into the 500 handler. |
-| SEC-23 | Low | `frontend/vite.config.ts:4,13,32`; `README.md:10-12`; `frontend/public/.DS_Store`; root `package.json` | **Dev leftovers.** The Lovable `allowedHosts` entry and `lovable-tagger` plugin; a "Bankist Demo credentials" table in the README (from an unrelated project); `.DS_Store` copied into every build; a root `deploy:setup` script that calls a frontend script which doesn't exist. |
+| SEC-23 | Low | `frontend/vite.config.ts:4,13,32`; `frontend/public/.DS_Store`; root `package.json` | **Dev leftovers.** The Lovable `allowedHosts` entry and `lovable-tagger` plugin; `.DS_Store` copied into every build; a root `deploy:setup` script that calls a frontend script which doesn't exist. |
 
 **Good news, so you don't "fix" what isn't broken:** ownership checks on `GET/PATCH/DELETE /videos/:id` are already correct (`findOne({ _id, ownerId })`), `profileController` already uses field allowlists rather than mass assignment, `login` already returns a generic error, Google `email_verified` is already checked, and `VideoPlayer` already revokes its blob URLs. Add regression tests that lock these in.
 
@@ -117,7 +117,6 @@ Work in this order. After each group, run the full suite plus the e2e test and f
 - Add `backend/.env.example` and `frontend/.env.example` with placeholders only.
 - Validate required env vars at startup with zod — `JWT_SECRET` at least 32 random bytes, valid URLs, required AWS values. Fail fast with a clear error that never echoes a secret value. **Do not add a database-name requirement to `MONGO_URI`** — migration is deferred (§0).
 - Add **gitleaks** as a pre-commit hook (husky or lefthook) and as a CI step.
-- Remove the demo credentials from the README (SEC-23).
 - Write `SECURITY.md`: threat model (copy §1, including the accepted risk), credential-rotation runbook (Atlas user, AWS IAM keys, JWT secret, Google client), vulnerability-reporting contact, and the full env-var list.
 
 ### B. Cryptography — honest posture, no redesign

@@ -1,0 +1,6 @@
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact -v
+else
+  echo "gitleaks not installed — skipping secret scan for this commit."
+  echo "Install it (e.g. 'brew install gitleaks') so this check actually runs: https://github.com/gitleaks/gitleaks#installing"
+fi

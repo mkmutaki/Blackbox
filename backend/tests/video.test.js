@@ -1,22 +1,65 @@
 const request = require('supertest');
 const { app, createUserAndToken } = require('./helpers');
-const fakeS3 = require('../services/fakeS3Client');
 
-const uploadVideo = (token, overrides = {}) => {
-  const req = request(app)
-    .post('/api/videos')
+const DEFAULT_IV = 'aabbccddeeff00112233445566778899';
+const DEFAULT_JWK = JSON.stringify({ kty: 'oct', k: 'fake-key-material', alg: 'A256GCM' });
+
+const presign = (token) =>
+  request(app)
+    .post('/api/videos/presign')
     .set('Authorization', `Bearer ${token}`)
-    .field('iv', overrides.iv ?? 'aabbccddeeff00112233445566778899')
-    .field('jwk', overrides.jwk ?? JSON.stringify({ kty: 'oct', k: 'fake-key-material', alg: 'A256GCM' }))
-    .field('title', overrides.title ?? 'My First Log');
+    .send({ contentType: 'application/octet-stream', contentLength: 17 });
 
-  if (overrides.skipFile) return req;
-
-  return req.attach('file', Buffer.from('encrypted-bytes'), 'encrypted_video.dat');
+// Uploads bytes to whatever presigned target the backend handed back —
+// exercises the same fake-S3 POST route the browser would hit directly.
+const uploadBytes = (presignedUrl, fields, bytes = Buffer.from('encrypted-bytes')) => {
+  const uploadPath = new URL(presignedUrl).pathname;
+  const req = request(app).post(uploadPath);
+  Object.entries(fields).forEach(([field, value]) => req.field(field, value));
+  return req.attach('file', bytes, 'encrypted_video.dat');
 };
 
-describe('POST /api/videos', () => {
-  it('uploads an encrypted video and stores it via the S3 client', async () => {
+const finalize = (token, body) =>
+  request(app).post('/api/videos/finalize').set('Authorization', `Bearer ${token}`).send(body);
+
+// End-to-end happy path: presign -> upload -> finalize. What most tests use
+// to get "a video that exists" without caring about the upload mechanics.
+const uploadVideo = async (token, overrides = {}) => {
+  const presignRes = await presign(token);
+  await uploadBytes(presignRes.body.url, presignRes.body.fields);
+
+  return finalize(token, {
+    key: presignRes.body.key,
+    iv: overrides.iv ?? DEFAULT_IV,
+    jwk: overrides.jwk ?? DEFAULT_JWK,
+    title: overrides.title ?? 'My First Log',
+  });
+};
+
+describe('POST /api/videos/presign', () => {
+  it('returns a server-generated key under the caller\'s own prefix', async () => {
+    const { token, user } = await createUserAndToken();
+
+    const res = await presign(token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.url).toBeTruthy();
+    expect(res.body.fields).toBeTruthy();
+    expect(res.body.key.startsWith(`videos/${user.id}/`)).toBe(true);
+    expect(res.body.key.split('/').pop()).toMatch(/^[0-9a-f-]{36}$/); // uuid, not a client filename
+  });
+
+  it('requires authentication', async () => {
+    const res = await request(app)
+      .post('/api/videos/presign')
+      .send({ contentType: 'application/octet-stream' });
+
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/videos/finalize', () => {
+  it('creates a video record once the object actually exists in storage', async () => {
     const { token } = await createUserAndToken();
 
     const res = await uploadVideo(token);
@@ -26,7 +69,7 @@ describe('POST /api/videos', () => {
     expect(res.body.entryNumber).toBe(1);
   });
 
-  it('increments entryNumber per user', async () => {
+  it('increments entryNumber per user, atomically', async () => {
     const { token } = await createUserAndToken();
 
     await uploadVideo(token);
@@ -35,30 +78,67 @@ describe('POST /api/videos', () => {
     expect(second.body.entryNumber).toBe(2);
   });
 
-  it('rejects a missing file', async () => {
+  it('rejects finalize when nothing was actually uploaded to the presigned key', async () => {
     const { token } = await createUserAndToken();
+    const presignRes = await presign(token);
 
-    const res = await uploadVideo(token, { skipFile: true });
+    // Skips uploadBytes entirely — the object never lands in the fake store.
+    const res = await finalize(token, {
+      key: presignRes.body.key,
+      iv: DEFAULT_IV,
+      jwk: DEFAULT_JWK,
+      title: 'Ghost entry',
+    });
 
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a key outside the caller\'s own prefix', async () => {
+    const { token: tokenA } = await createUserAndToken();
+    const { token: tokenB } = await createUserAndToken();
+
+    const presignA = await presign(tokenA);
+    await uploadBytes(presignA.body.url, presignA.body.fields);
+
+    // User B tries to finalize into their own account using A's upload key.
+    const res = await finalize(tokenB, {
+      key: presignA.body.key,
+      iv: DEFAULT_IV,
+      jwk: DEFAULT_JWK,
+      title: 'Stolen entry',
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects missing iv/jwk/key', async () => {
+    const { token } = await createUserAndToken();
+    const res = await finalize(token, { title: 'x' });
     expect(res.status).toBe(400);
   });
 
   it('rejects a missing title', async () => {
     const { token } = await createUserAndToken();
+    const presignRes = await presign(token);
+    await uploadBytes(presignRes.body.url, presignRes.body.fields);
 
-    const res = await uploadVideo(token, { title: '' });
+    const res = await finalize(token, { key: presignRes.body.key, iv: DEFAULT_IV, jwk: DEFAULT_JWK, title: '' });
+    expect(res.status).toBe(400);
+  });
 
+  it('rejects invalid JSON in jwk', async () => {
+    const { token } = await createUserAndToken();
+    const presignRes = await presign(token);
+    await uploadBytes(presignRes.body.url, presignRes.body.fields);
+
+    const res = await finalize(token, { key: presignRes.body.key, iv: DEFAULT_IV, jwk: 'not-json', title: 'x' });
     expect(res.status).toBe(400);
   });
 
   it('requires authentication', async () => {
     const res = await request(app)
-      .post('/api/videos')
-      .field('iv', 'aa')
-      .field('jwk', '{}')
-      .field('title', 'x')
-      .attach('file', Buffer.from('data'), 'video.dat');
-
+      .post('/api/videos/finalize')
+      .send({ key: 'videos/x/y', iv: DEFAULT_IV, jwk: DEFAULT_JWK, title: 'x' });
     expect(res.status).toBe(401);
   });
 });

@@ -1,4 +1,8 @@
 require('dotenv').config();
+const { validateEnv } = require('./validateEnv');
+
+validateEnv();
+
 const mongoose = require('mongoose');
 const app = require('./app');
 

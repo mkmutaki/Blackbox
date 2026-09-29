@@ -13,7 +13,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "aws-sdk": "^2.1692.0",
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/s3-presigned-post": "^3.1141.0",
+    "@aws-sdk/s3-request-presigner": "^3.1141.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
@@ -22,10 +24,11 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.13.2",
-    "multer": "^1.4.5-lts.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.3.0",
+    "multer": "^2.4.0",
     "supertest": "^7.3.0",
     "vitest": "^4.1.11"
   }

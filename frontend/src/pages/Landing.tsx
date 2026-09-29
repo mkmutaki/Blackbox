@@ -13,7 +13,7 @@ import styles from "./Landing.module.css";
 
 const terminalLines = [
   ["record", "Open the camera. Talk about your day. Sixty seconds is plenty."],
-  ["keep", "It lands in your box, encrypted, out of everyone else's reach."],
+  ["keep", "It lands in your box, encrypted, waiting for you."],
   ["revisit", "Scroll back through the ordinary days that turned out to matter."],
   ["pass on", "Choose who opens which entry, and when they get to."],
 ] as const;
@@ -124,7 +124,7 @@ export default function Landing() {
             <article className={styles.privacyCard}>
               <LockKeyhole className={styles.cardIcon} />
               <h3>Sealed on your device</h3>
-              <p>Entries are encrypted before upload. We store the box; you hold the key.</p>
+              <p>Entries are encrypted in your browser before upload. Blackbox currently holds the key so playback works across your devices; end-to-end encryption is on the roadmap.</p>
             </article>
             <article className={styles.privacyCard}>
               <EyeOff className={styles.cardIcon} />

@@ -433,18 +433,33 @@ const VideoRecorder = () => {
       const blob = recordedBlobRef.current;
       const { encryptedBlob, iv, jwk } = await encryptVideo(blob);
 
-      const formData = new FormData();
-      formData.append('file', encryptedBlob, `encrypted_video_${Date.now()}.dat`);
-      formData.append('iv', iv);
-      formData.append('jwk', JSON.stringify(jwk));
-      formData.append('title', videoTitle.trim());
+      // 1. Ask the backend for a presigned POST — it generates the storage
+      // key server-side, so no client-supplied filename ever reaches S3.
+      const { url, fields, key } = await post<{ url: string; fields: Record<string, string>; key: string }>(
+        '/videos/presign',
+        { contentType: 'application/octet-stream', contentLength: encryptedBlob.size }
+      );
 
-      const response = await post('/videos', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        }
+      // 2. Upload the ciphertext straight to storage. This goes directly to
+      // the presigned URL, not through our API — Express never sees the file.
+      const uploadForm = new FormData();
+      Object.entries(fields).forEach(([field, value]) => uploadForm.append(field, value));
+      uploadForm.append('file', encryptedBlob, `encrypted_video_${Date.now()}.dat`);
+
+      const uploadResponse = await fetch(url, { method: 'POST', body: uploadForm });
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload to storage failed: ${uploadResponse.status}`);
+      }
+
+      // 3. Only now does the backend learn about it — it confirms the
+      // object actually exists before writing a database record.
+      await post('/videos/finalize', {
+        key,
+        iv,
+        jwk: JSON.stringify(jwk),
+        title: videoTitle.trim(),
       });
-      
+
       toast.success("Recording saved to database");
 
       setGlobalIsRecording(false);

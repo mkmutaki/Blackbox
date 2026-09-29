@@ -14,7 +14,10 @@ const VideoSchema = new mongoose.Schema({
   // Fields for additional requirements
   entryNumber: { type: Number },
   synodicDay: { type: Number },
-  category: { type: String }
+  category: { type: String },
+  // Lets a future E2EE migration tell old- and new-format records apart
+  // instead of guessing. Bump this if the encryption scheme ever changes.
+  encVersion: { type: Number, required: true, default: 1 }
 });
 
 module.exports = mongoose.model('Video', VideoSchema);

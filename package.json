@@ -1,24 +1,26 @@
 {
-    "name": "blackbox-root",
-    "private": true,
-    "version": "1.0.0",
-    "scripts": {
-        "start": "cd frontend && npm run dev",
-        "dev": "cd frontend && npm run dev",
-        "build": "cd frontend && npm run build",
-        "build:prod": "cd frontend && npm run build:prod",
-        "backend": "cd backend && node server.js",
-        "deploy": "cd frontend && npm run deploy",
-        "test:backend": "cd backend && npm test",
-        "test:frontend": "cd frontend && npm test",
-        "test:e2e": "playwright test --config=e2e/playwright.config.ts",
-        "test": "npm run test:backend && npm run test:frontend && npm run test:e2e"
-    },
-    "workspaces": [
-        "frontend",
-        "backend"
-    ],
-    "devDependencies": {
-        "@playwright/test": "^1.63.0"
-    }
+  "name": "blackbox-root",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "cd frontend && npm run dev",
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "build:prod": "cd frontend && npm run build:prod",
+    "backend": "cd backend && node server.js",
+    "deploy": "cd frontend && npm run deploy",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "test": "npm run test:backend && npm run test:frontend && npm run test:e2e",
+    "prepare": "husky"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "husky": "^9.1.7"
+  }
 }
