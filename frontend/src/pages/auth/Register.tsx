@@ -243,8 +243,8 @@ export default function Register() {
         {step === 'name' && (
           <form className="space-y-6" onSubmit={handleNameSubmit}>
             <div>
-              <Label htmlFor="fullName" className={fieldLabelClass}>
-                Full Name
+              <Label htmlFor="Full Name" className={fieldLabelClass}>
+                First Name
               </Label>
               <Input
                 id="fullName"
@@ -253,7 +253,7 @@ export default function Register() {
                 autoComplete="name"
                 autoFocus
                 required
-                placeholder="Full name"
+                placeholder="First name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="font-mono"
