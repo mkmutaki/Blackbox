@@ -12,7 +12,13 @@ mongoose.connect(process.env.MONGO_URI, {
   useUnifiedTopology: true,
 })
   .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+  .catch(err => {
+    // Serving requests against a database that never connected means every
+    // route silently 500s instead of the failure being visible at deploy
+    // time (SEC-14). Fail fast instead.
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  });
 
 const PORT = process.env.PORT || 5100;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

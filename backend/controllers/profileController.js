@@ -1,36 +1,33 @@
 const User = require('../models/User');
+const { toSafeUser } = require('../services/userView');
 
 // @route   PUT /api/profile/update
 // @desc    Update user profile
 // @access  Private
 const updateProfile = async (req, res) => {
   try {
+    // Presence/type/length already enforced by updateProfileSchema's
+    // validate() middleware in profileRoutes.js — only date-of-birth
+    // semantics need checking here.
     const { username, dateOfBirth } = req.body;
 
-    // Validate inputs
-    if (!dateOfBirth) {
-      return res.status(400).json({ error: 'Date of birth is required' });
-    }
-
-    // Validate date of birth
     const birthDate = new Date(dateOfBirth);
     if (isNaN(birthDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date of birth' });
     }
 
-    // Check if birthdate is not in the future
     if (birthDate > new Date()) {
       return res.status(400).json({ error: 'Date of birth cannot be in the future' });
     }
 
-    // Update user profile (username is only overwritten if explicitly provided,
-    // e.g. Google sign-ups already have it set from their Google account)
+    // username is only overwritten if explicitly provided (e.g. Google
+    // sign-ups already have it set from their Google account).
     const update = {
       'profile.dateOfBirth': birthDate,
       'profile.isProfileComplete': true
     };
-    if (username && username.trim()) {
-      update['profile.username'] = username.trim();
+    if (username !== undefined) {
+      update['profile.username'] = username;
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -45,7 +42,7 @@ const updateProfile = async (req, res) => {
 
     res.json({
       message: 'Profile updated successfully',
-      user: updatedUser
+      user: toSafeUser(updatedUser)
     });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -58,53 +55,36 @@ const updateProfile = async (req, res) => {
 // @access  Private
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
-    
+    const user = await User.findById(req.user.userId);
+
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    res.json(user);
+
+    res.json(toSafeUser(user));
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
-// Idle-lock intervals the client is allowed to choose from. 0 means never.
-const AUTO_LOCK_CHOICES = [0, 5, 15, 30];
-
 // @route   POST /api/profile/onboarding
 // @desc    Persist onboarding answers and mark the flow as finished
 // @access  Private
 const completeOnboarding = async (req, res) => {
   try {
+    // Presence/type/length/enum already enforced by onboardingSchema's
+    // validate() middleware in profileRoutes.js.
     const { username, autoLockMinutes } = req.body;
 
     const update = { 'profile.onboardingComplete': true };
 
     if (username !== undefined) {
-      const trimmed = String(username).trim();
-
-      if (!trimmed) {
-        return res.status(400).json({ error: 'Callsign cannot be empty' });
-      }
-
-      if (trimmed.length > 32) {
-        return res.status(400).json({ error: 'Callsign must be 32 characters or fewer' });
-      }
-
-      update['profile.username'] = trimmed;
+      update['profile.username'] = username;
     }
 
     if (autoLockMinutes !== undefined) {
-      const minutes = Number(autoLockMinutes);
-
-      if (!AUTO_LOCK_CHOICES.includes(minutes)) {
-        return res.status(400).json({ error: 'Invalid auto-lock interval' });
-      }
-
-      update['profile.autoLockMinutes'] = minutes;
+      update['profile.autoLockMinutes'] = autoLockMinutes;
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -119,7 +99,7 @@ const completeOnboarding = async (req, res) => {
 
     res.json({
       message: 'Onboarding complete',
-      user: updatedUser
+      user: toSafeUser(updatedUser)
     });
   } catch (error) {
     console.error('Complete onboarding error:', error);

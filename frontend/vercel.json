@@ -1,0 +1,35 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "comment": "Inert while the frontend ships from GitHub Pages — GitHub Pages cannot set response headers at all, so this file does nothing there. It exists for the custom-domain migration (SECURITY_HARDENING_PROMPT.md §5.F): once the frontend is actually served from Vercel, these headers apply automatically. The CSP here duplicates the <meta> tag vite.config.ts bakes into the production build (see injectProductionCSP) — keep both in sync if either changes. Headers a <meta> tag cannot carry (X-Frame-Options, Permissions-Policy, HSTS) live only here.",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com https://blackbox-2lt5.onrender.com https://*.amazonaws.com; media-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(self), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        }
+      ]
+    }
+  ]
+}
