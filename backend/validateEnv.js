@@ -17,6 +17,15 @@ const envSchema = z.object({
   S3_BUCKET_NAME: z.string().min(1),
   MAX_UPLOAD_BYTES: z.coerce.number().positive().optional(),
   PORT: z.coerce.number().positive().optional(),
+  // Where emailed verification/reset links point. Defaults to the local
+  // dev frontend if unset — see services/email.js.
+  FRONTEND_URL: z.string().url().optional(),
+  // 'none' (default) for the current cross-site github.io/onrender.com
+  // split; switch to 'lax' or 'strict' once the custom domain unifies both
+  // into one site. See services/cookies.js.
+  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).optional(),
+  // Comma-separated CORS/CSRF allowlist. See middleware/csrf.js.
+  ALLOWED_ORIGINS: z.string().optional(),
 });
 
 // Fails fast with the list of what's wrong — field names and constraint

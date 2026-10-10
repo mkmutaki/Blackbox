@@ -81,9 +81,12 @@ test('register, record, upload, play, rename, delete, logout, log back in', asyn
   await page.waitForTimeout(2500);
 
   await recordToggle.click();
-  await expect(recordToggle).not.toHaveClass(/bg-destructive/);
-
-  // --- upload ---
+  // No assertion on recordToggle itself here: once hasRecording flips true
+  // (moments after isRecording flips false) the toggle button is removed
+  // from the DOM entirely, replaced by the title input + save/delete
+  // controls below — asserting a class on it is a race against that
+  // removal. The title input appearing is the real signal that stopping
+  // succeeded.
   const titleInput = page.getByTestId('video-title-input');
   await expect(titleInput).toBeVisible();
   const videoTitle = 'E2E Mission Log';

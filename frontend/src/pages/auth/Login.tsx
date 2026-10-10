@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
@@ -98,10 +99,9 @@ export default function Login() {
               />
             </div>
             <div>
-              <Input
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
                 autoComplete="current-password"
                 required
                 placeholder="Password"
@@ -109,6 +109,11 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="font-mono"
               />
+              <div className="mt-1.5 text-right">
+                <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-accent hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
           </div>
 

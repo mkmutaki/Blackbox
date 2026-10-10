@@ -1,6 +1,5 @@
 import { createContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
-import api from '../services/api';
+import api, { setUnauthorizedHandler } from '../services/api';
 
 // Types
 type User = {
@@ -30,7 +29,7 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, fullName: string, dateOfBirth: string) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (profileData: { username?: string; dateOfBirth: string }) => Promise<void>;
   completeOnboarding: (answers: OnboardingAnswers) => Promise<void>;
   error: string | null;
@@ -46,34 +45,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if user is logged in on initial load
+  // The session lives in an httpOnly cookie now — there's nothing in
+  // localStorage to check first. Just ask the server; it either attaches
+  // a valid cookie or it doesn't.
   useEffect(() => {
     const checkLoggedIn = async () => {
       try {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-          setIsLoading(false);
-          return;
-        }
-        
-        // Configure axios
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // Verify token and get user data
         const res = await api.get('/auth/me');
-        
         setUser(res.data);
         setIsLoggedIn(true);
-        setIsLoading(false);
       } catch (error) {
-        console.error('Authentication check failed', error);
-        localStorage.removeItem('token');
+        // Not logged in, or the session expired — nothing to clean up
+        // locally, there's no token to remove.
+      } finally {
         setIsLoading(false);
       }
     };
-    
+
     checkLoggedIn();
+  }, []);
+
+  // If a background request's silent refresh attempt ultimately fails
+  // (the refresh token itself is invalid/revoked), the api layer has no
+  // way to update React state itself — it calls this instead.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      setIsLoggedIn(false);
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   // Register user
@@ -88,16 +88,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         fullName,
         dateOfBirth
       });
-      
-      const { token, user } = res.data;
-      
-      // Save token to local storage
-      localStorage.setItem('token', token);
-      
-      // Set default axios headers
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
-      setUser(user);
+
+      setUser(res.data.user);
       setIsLoggedIn(true);
       setIsLoading(false);
     } catch (error: any) {
@@ -112,21 +104,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const res = await api.post('/auth/login', {
         email,
         password
       });
-      
-      const { token, user } = res.data;
-      
-      // Save token to local storage
-      localStorage.setItem('token', token);
-      
-      // Set default axios headers
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
+
+      const { user } = res.data;
+
       setUser(user);
       setIsLoggedIn(true);
       setIsLoading(false);
@@ -148,15 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await api.post('/auth/google', { credential });
 
-      const { token, user } = res.data;
-
-      // Save token to local storage
-      localStorage.setItem('token', token);
-
-      // Set default axios headers
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      setUser(user);
+      setUser(res.data.user);
       setIsLoggedIn(true);
       setIsLoading(false);
     } catch (error: any) {
@@ -167,22 +145,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Logout user
-  const logout = () => {
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
-    setUser(null);
-    setIsLoggedIn(false);
+  // Logout user — tells the server to revoke the refresh-token family and
+  // clear the cookies, then clears local state regardless of whether that
+  // request succeeded (being offline shouldn't trap someone in a session
+  // they're trying to leave).
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      setUser(null);
+      setIsLoggedIn(false);
+    }
   };
 
   // Update user profile
   const updateProfile = async (profileData: { username?: string; dateOfBirth: string }) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const res = await api.put('/profile/update', profileData);
-      
+
       // Update user state with new profile data
       setUser(res.data.user);
       setIsLoading(false);

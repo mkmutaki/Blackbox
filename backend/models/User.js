@@ -23,6 +23,24 @@ const UserSchema = new mongoose.Schema({
     enum: ['local', 'google'],
     default: 'local'
   },
+  // True for Google accounts (Google already verified the email). Local
+  // accounts start false; set true by clicking the emailed verification
+  // link, or implicitly by completing a password reset (equally strong
+  // proof the requester controls the inbox). Gates Google-account linking
+  // — see googleAuth in authController.js — so pre-registering someone
+  // else's email can't be used to hijack their later Google sign-in.
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+  // Bumped whenever every existing session should be invalidated at once
+  // (password change, detected refresh-token reuse). authMiddleware checks
+  // this on every request, so it takes effect within one access-token
+  // lifetime instead of waiting up to 7 days for an old token to expire.
+  tokenVersion: {
+    type: Number,
+    default: 0
+  },
   profile: {
     // Immutable: captured once at sign-up and never editable afterwards.
     fullName: {

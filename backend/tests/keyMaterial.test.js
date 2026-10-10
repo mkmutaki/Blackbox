@@ -5,27 +5,23 @@
 // guarantee instead of a hope, and it's meant to keep failing loudly if a
 // future endpoint (admin panel included) ever leaks these fields.
 const request = require('supertest');
-const { app, createUserAndToken } = require('./helpers');
+const { app, createUserAndAgent, TEST_ORIGIN } = require('./helpers');
 
 const IV = 'aabbccddeeff00112233445566778899';
 const JWK_SECRET_MARKER = 'do-not-leak-this-key-material';
 const JWK = JSON.stringify({ kty: 'oct', k: JWK_SECRET_MARKER, alg: 'A256GCM' });
 
-const uploadVideo = async (token, title = 'Contained Entry') => {
-  const presignRes = await request(app)
+const uploadVideo = async (agent, title = 'Contained Entry') => {
+  const presignRes = await agent
     .post('/api/videos/presign')
-    .set('Authorization', `Bearer ${token}`)
     .send({ contentType: 'application/octet-stream', contentLength: 17 });
 
   const uploadPath = new URL(presignRes.body.url).pathname;
-  const uploadReq = request(app).post(uploadPath);
+  const uploadReq = request(app).post(uploadPath).set('Origin', TEST_ORIGIN);
   Object.entries(presignRes.body.fields).forEach(([field, value]) => uploadReq.field(field, value));
   await uploadReq.attach('file', Buffer.from('encrypted-bytes'), 'encrypted_video.dat');
 
-  return request(app)
-    .post('/api/videos/finalize')
-    .set('Authorization', `Bearer ${token}`)
-    .send({ key: presignRes.body.key, iv: IV, jwk: JWK, title });
+  return agent.post('/api/videos/finalize').send({ key: presignRes.body.key, iv: IV, jwk: JWK, title });
 };
 
 // Every response body is stringified and scanned for the raw key material —
@@ -38,62 +34,54 @@ const assertNoKeyMaterial = (res) => {
 
 describe('key material containment (jwk/iv)', () => {
   it('IS returned to the video\'s own owner via GET /videos and GET /videos/:id', async () => {
-    const { token } = await createUserAndToken();
-    const upload = await uploadVideo(token);
+    const { agent } = await createUserAndAgent();
+    const upload = await uploadVideo(agent);
 
-    const list = await request(app).get('/api/videos').set('Authorization', `Bearer ${token}`);
+    const list = await agent.get('/api/videos');
     expect(JSON.stringify(list.body)).toContain(JWK_SECRET_MARKER);
 
-    const single = await request(app).get(`/api/videos/${upload.body.id}`).set('Authorization', `Bearer ${token}`);
+    const single = await agent.get(`/api/videos/${upload.body.id}`);
     expect(JSON.stringify(single.body)).toContain(JWK_SECRET_MARKER);
   });
 
   it('is NOT returned to another user who owns nothing', async () => {
-    const { token: owner } = await createUserAndToken();
-    const { token: stranger } = await createUserAndToken();
+    const { agent: owner } = await createUserAndAgent();
+    const { agent: stranger } = await createUserAndAgent();
     const upload = await uploadVideo(owner);
 
-    assertNoKeyMaterial(await request(app).get('/api/videos').set('Authorization', `Bearer ${stranger}`));
-    assertNoKeyMaterial(
-      await request(app).get(`/api/videos/${upload.body.id}`).set('Authorization', `Bearer ${stranger}`)
-    );
+    assertNoKeyMaterial(await stranger.get('/api/videos'));
+    assertNoKeyMaterial(await stranger.get(`/api/videos/${upload.body.id}`));
   });
 
   it('never appears in presign, finalize, patch, delete, auth, or profile responses', async () => {
-    const { token } = await createUserAndToken();
-    const upload = await uploadVideo(token);
+    const { agent } = await createUserAndAgent();
+    const upload = await uploadVideo(agent);
 
-    const presign = await request(app)
-      .post('/api/videos/presign')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ contentType: 'application/octet-stream', contentLength: 17 });
+    const presign = await agent.post('/api/videos/presign').send({ contentType: 'application/octet-stream', contentLength: 17 });
     assertNoKeyMaterial(presign);
 
     // The finalize response that just created this exact video's record.
     assertNoKeyMaterial(upload);
 
-    const patch = await request(app)
-      .patch(`/api/videos/${upload.body.id}`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ title: 'Renamed' });
+    const patch = await agent.patch(`/api/videos/${upload.body.id}`).send({ title: 'Renamed' });
     assertNoKeyMaterial(patch);
 
-    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+    const me = await agent.get('/api/auth/me');
     assertNoKeyMaterial(me);
 
-    const profile = await request(app).get('/api/profile').set('Authorization', `Bearer ${token}`);
+    const profile = await agent.get('/api/profile');
     assertNoKeyMaterial(profile);
 
-    const del = await request(app).delete(`/api/videos/${upload.body.id}`).set('Authorization', `Bearer ${token}`);
+    const del = await agent.delete(`/api/videos/${upload.body.id}`);
     assertNoKeyMaterial(del);
   });
 
   it('never appears in an error response, even when the request references this video', async () => {
-    const { token } = await createUserAndToken();
-    await uploadVideo(token);
+    const { agent } = await createUserAndAgent();
+    await uploadVideo(agent);
 
     // Malformed id -> the generic error path, not the happy path.
-    const res = await request(app).get('/api/videos/not-a-valid-id').set('Authorization', `Bearer ${token}`);
+    const res = await agent.get('/api/videos/not-a-valid-id');
     assertNoKeyMaterial(res);
   });
 });

@@ -150,7 +150,7 @@ Work in this order. After each group, run the full suite plus the e2e test and f
 - **CSRF protection** on state-changing routes: SameSite plus a strict Origin/Referer allowlist, and a double-submit token if needed.
 - **Email verification** for local accounts, and a password reset flow. **Ask which email provider to use before implementing.**
 - **Google linking** (SEC-01): auto-link only when the existing local account's email is verified; otherwise require a password sign-in first. This is the critical fix — land it early and test it hard.
-- **Passwords:** bcrypt cost ≥ 12, minimum 12 characters, reject breached passwords via the HIBP k-anonymity range API (fail open if it's unreachable).
+- **Passwords:** bcrypt cost ≥ 8, minimum 8 characters, should have at least 1 capitalized character, 1 number & 1 special character. Reject breached passwords via the HIBP k-anonymity range API (fail open if it's unreachable).
 - **No enumeration:** generic responses on register, login and reset (SEC-10).
 - **Rate limiting** with `express-rate-limit`, per IP and per account, on login, register, Google auth, password reset and upload/presign. Set `trust proxy` correctly for Render (SEC-05).
 

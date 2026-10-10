@@ -1,22 +1,29 @@
-const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const { ACCESS_TOKEN_COOKIE } = require('../services/cookies');
+const { verifyAccessToken } = require('../services/jwt');
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
-    // Get token from header
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
+
+    if (!token) {
       return res.status(401).json({ error: 'Authorization denied - No token provided' });
     }
 
-    // Extract token from header
-    const token = authHeader.split(' ')[1];
-    
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Attach user to request object
-    req.user = { userId: decoded.userId };
+    const decoded = verifyAccessToken(token);
+
+    // Resolved from the database on every request — not just decoded from
+    // the token — so a password change or detected token-reuse (both bump
+    // tokenVersion) invalidates this access token immediately instead of
+    // waiting up to its own 15-minute lifetime. Also means a deleted user's
+    // old token stops working the moment the account is gone, not later.
+    const user = await User.findById(decoded.userId).select('tokenVersion');
+
+    if (!user || user.tokenVersion !== decoded.tokenVersion) {
+      return res.status(401).json({ error: 'Token is not valid' });
+    }
+
+    req.user = { userId: decoded.userId, tokenVersion: decoded.tokenVersion };
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Token is not valid' });

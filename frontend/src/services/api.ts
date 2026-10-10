@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 // Dynamic API base URL based on environment
 const getApiBaseUrl = () => {
@@ -6,19 +6,17 @@ const getApiBaseUrl = () => {
   if (import.meta.env.DEV) {
     return '/api';  // Use relative path - Vite will proxy this
   }
-  
+
   // Check if we're running on GitHub Pages
   if (window.location.hostname === 'mkmutaki.github.io') {
     return 'https://blackbox-2lt5.onrender.com/api';
   }
-  
+
   // Fallback for other environments
   return import.meta.env.VITE_API_BASE_URL || '/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
-
-console.log('API Base URL:', API_BASE_URL); // Debug log to verify correct URL
 
 // Create Axios instance with default config
 const api = axios.create({
@@ -26,35 +24,60 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // The session lives in httpOnly cookies now, not a token this code can
+  // read — withCredentials is what makes the browser attach them (and
+  // store the ones a response sets) on cross-site requests at all.
+  withCredentials: true,
 });
 
-// Request interceptor - will be used for authentication later
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// Called once, from AuthContext, so a session that turns out to be
+// unrecoverable (refresh itself failed) can clear local user state even
+// when the failing request happened well after the initial page load.
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  onUnauthorized = handler;
+};
 
-// Response interceptor for error handling
+interface RetryableConfig extends InternalAxiosRequestConfig {
+  _retriedAfterRefresh?: boolean;
+}
+
+// Concurrent requests that all 401 at once (e.g. a page that fires several
+// API calls on mount) must not each trigger their own /auth/refresh —
+// that would race multiple rotations of the same refresh token against
+// each other. Coalesce into a single in-flight attempt they all await.
+let refreshPromise: Promise<boolean> | null = null;
+const attemptRefresh = (): Promise<boolean> => {
+  if (!refreshPromise) {
+    refreshPromise = api
+      .post('/auth/refresh')
+      .then(() => true)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
+
+// Response interceptor: a single transparent retry after a silent refresh.
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
-  (error: AxiosError) => {
-    // Handle common errors here
+  async (error: AxiosError) => {
+    const config = error.config as RetryableConfig | undefined;
     const status = error.response?.status;
-    
-    if (status === 401) {
-      // Handle unauthorized (e.g., logout user, redirect to login)
-      localStorage.removeItem('token');
-      // We'll implement redirect logic later
+
+    if (status === 401 && config && !config._retriedAfterRefresh && config.url !== '/auth/refresh') {
+      config._retriedAfterRefresh = true;
+
+      const refreshed = await attemptRefresh();
+      if (refreshed) {
+        return api(config);
+      }
+
+      onUnauthorized?.();
     }
-    
+
     return Promise.reject(error);
   }
 );

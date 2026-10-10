@@ -1,10 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('node:crypto');
+const { z } = require('zod');
 const Video = require('../models/Video');
 const Counter = require('../models/Counter');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const { presignIpLimiter, presignAccountLimiter } = require('../middleware/rateLimit');
+const { validate, objectIdParam } = require('../middleware/validate');
 const s3 = require('../services/s3Client');
+
+// Consistent length cap everywhere a title can be set (SEC-20 — previously
+// uncapped in both places it's written).
+const titleSchema = z.string().trim().min(1).max(200);
+
+const finalizeSchema = z.object({
+  key: z.string().min(1).max(500),
+  iv: z.string().min(1).max(200),
+  // Still JSON.parse'd and validated below — this just pins type/length so
+  // an absurdly large or non-string value can't reach that parse at all.
+  jwk: z.string().min(1).max(10000),
+  title: titleSchema,
+});
+
+const patchTitleSchema = z.object({
+  title: titleSchema,
+});
 
 const BUCKET = process.env.S3_BUCKET_NAME;
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES) || 200 * 1024 * 1024; // 200MB default
@@ -44,7 +64,7 @@ const getNextEntryNumber = async (ownerId) => {
 // @route   POST /api/videos/presign
 // @desc    Get a presigned POST so the browser can upload the encrypted
 //          video straight to S3 — Express never buffers the file.
-router.post('/presign', async (req, res) => {
+router.post('/presign', presignIpLimiter, presignAccountLimiter, async (req, res) => {
   try {
     const userId = req.user.userId;
     // Server-generated key only — a client-supplied filename never reaches
@@ -69,18 +89,10 @@ router.post('/presign', async (req, res) => {
 // @route   POST /api/videos/finalize
 // @desc    Confirm the upload actually landed in S3, then write the DB
 //          record. Called after the browser's direct-to-S3 upload succeeds.
-router.post('/finalize', async (req, res) => {
+router.post('/finalize', validate(finalizeSchema), async (req, res) => {
   try {
     const userId = req.user.userId;
     const { key, iv, jwk, title } = req.body;
-
-    if (!key || !iv || !jwk) {
-      return res.status(400).json({ error: 'key, iv, and jwk are required' });
-    }
-
-    if (!title || !title.trim()) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
 
     // Defence in depth: the key was server-generated under this user's own
     // prefix at /presign time — reject anything else even though a
@@ -160,7 +172,7 @@ router.get('/', async (req, res) => {
 
 // @route   GET /api/videos/:id
 // @desc    Get a specific video by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', objectIdParam('id'), async (req, res) => {
   try {
     const userId = req.user.userId;
     const video = await Video.findOne({ _id: req.params.id, ownerId: userId });
@@ -194,15 +206,10 @@ router.get('/:id', async (req, res) => {
 
 // @route   PATCH /api/videos/:id
 // @desc    Update video title
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', objectIdParam('id'), validate(patchTitleSchema), async (req, res) => {
   try {
     const userId = req.user.userId;
     const { title } = req.body;
-
-    // Validate input
-    if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
 
     // Find the video and ensure it belongs to the current user
     const video = await Video.findOne({ _id: req.params.id, ownerId: userId });
@@ -224,7 +231,7 @@ router.patch('/:id', async (req, res) => {
 
 // @route   DELETE /api/videos/:id
 // @desc    Delete a video
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', objectIdParam('id'), async (req, res) => {
   try {
     const userId = req.user.userId;
     const video = await Video.findOne({ _id: req.params.id, ownerId: userId });

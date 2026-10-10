@@ -47,9 +47,9 @@ What *is* done today as containment, short of full E2EE:
 - `Video.encVersion` is stamped on every record (`1` today) so a future
   E2EE migration can tell old- and new-format videos apart instead of
   guessing.
-- S3 default (server-side) encryption at rest is documented as an
-  infrastructure setting in `infra/` — defence in depth, not a substitute
-  for the above.
+- S3 default (server-side) encryption at rest should be enabled as defence
+  in depth — an infrastructure setting (bucket → Properties → Default
+  encryption), not a substitute for the above.
 
 ## What client-side encryption *does* protect against
 
@@ -59,6 +59,80 @@ Even with the above accepted risk, client-side encryption still means:
   S3 credentials without also having database access, gets encrypted bytes.
 - A backup or replica of just the object storage, without the database,
   reveals nothing.
+
+## Session model & CSRF
+
+- **Cookies, not localStorage.** The session lives in two httpOnly cookies —
+  a 15-minute access token (JWT, `HS256`, pinned `iss`/`aud`) and a
+  30-day rotating refresh token (`backend/models/RefreshToken.js`). Neither
+  is readable by JavaScript, so an XSS payload can no longer exfiltrate the
+  session the way `localStorage.getItem('token')` previously allowed.
+- **Refresh rotation with reuse detection.** Every `/auth/refresh` call
+  issues a new refresh token in the same "family" and marks the old one
+  used. If an already-used token is ever presented again — the signal that
+  it was copied/stolen — the entire family is revoked and the user's
+  `tokenVersion` is bumped, killing even a currently-live access token from
+  that chain immediately rather than waiting out its 15-minute lifetime.
+- **`tokenVersion` on `User`** means `authMiddleware` resolves the user from
+  the database on every request instead of trusting the token's claims
+  alone — a password reset, or detected token reuse, takes effect on the
+  very next request.
+- **SameSite is `none` today, by necessity, not by oversight.** The live
+  frontend (GitHub Pages) and backend (Render) are different sites — a
+  `Lax`/`Strict` cookie simply wouldn't be sent cross-site at all. CSRF
+  protection instead comes from a strict Origin/Referer allowlist
+  (`backend/middleware/csrf.js`) on every state-changing request. Once the
+  planned custom domain unifies both into one site, set
+  `COOKIE_SAME_SITE=lax` (see `.env.example`) to add SameSite as a second
+  layer on top of the Origin check — don't remove the Origin check itself.
+- **Rate limiting** (`backend/middleware/rateLimit.js`) is per-IP and
+  per-account on login, register, Google auth, password reset, and video
+  presign. It's in-memory (`express-rate-limit`'s default store) — fine for
+  the current single Render instance, but won't coordinate limits across
+  multiple instances if the backend is ever scaled horizontally; move to a
+  shared store (Redis) first if that happens.
+
+## HTTP hardening: CORS, CSP, and input validation
+
+- **Every route validates its input** (`backend/middleware/validate.js`,
+  zod): body/param fields are type-pinned, length-capped, and unknown keys
+  are stripped. This is what actually closes NoSQL-operator-injection paths
+  like `{"email": {"$ne": null}}` — the value fails `z.string()` before it
+  can reach a Mongoose query — and is a stronger guarantee than
+  `mongoose.set('sanitizeFilter', true)` alone (also enabled, as a second
+  layer). A malformed `:id` now 400s instead of 500ing.
+- **CORS and CSRF share one allowlist.** `ALLOWED_ORIGINS` (comma-separated
+  env var) feeds both the `cors()` config and the CSRF Origin/Referer check
+  in `backend/middleware/csrf.js`, computed fresh per request. Localhost is
+  only ever added when `NODE_ENV` is not `production`.
+- **Helmet runs with an explicit, locked-down CSP** (`default-src 'none'`)
+  and HSTS. The backend is a pure JSON API with no HTML of its own, so this
+  has no legitimate traffic to break.
+- **The frontend carries its own CSP**, because GitHub Pages cannot set
+  response headers at all, so a backend CSP can never reach it. A
+  production-only `<meta http-equiv="Content-Security-Policy">` tag is
+  baked into the build by a Vite plugin (`frontend/vite.config.ts`'s
+  `injectProductionCSP` — dev mode is untouched, so local HMR still works).
+  It allows `self`, Google Identity Services (`accounts.google.com`), the
+  API origin, S3 (`*.amazonaws.com`, for the signed URLs `VideoPlayer`
+  fetches directly), `blob:` (decrypted video playback), and Google Fonts.
+  `frontend/vercel.json` carries the same policy plus headers a `<meta>`
+  tag can't express (`X-Frame-Options`, `Permissions-Policy`, HSTS) for
+  the planned custom-domain host — inert on GitHub Pages, ready for when
+  that migration happens.
+
+## Known limitation: email delivery is stubbed
+
+Email verification and password reset are fully implemented end to end —
+`backend/services/email.js` is the one function every send goes through —
+but no real provider is wired in yet (the prompt that drove this asks to
+pick one before implementing; that hasn't happened). Today, both flows log
+the link to the server's console instead of sending it. **Nobody can
+self-serve either flow in production** until a provider (Resend, SES,
+SendGrid, …) is chosen and `sendEmail` is pointed at it — everything else
+(token generation, expiry, single-use enforcement, the SEC-01 Google-linking
+gate that depends on `emailVerified`) already works and is tested against
+the stub.
 
 ## Reporting a vulnerability
 
@@ -83,12 +157,12 @@ accident, shared insecurely, or a team member who had access leaves).
 2. Update `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in Render's environment variables.
 3. Redeploy and confirm uploads/downloads still work.
 4. **Deactivate**, then after confirming nothing broke, **delete** the old access key in IAM.
-5. Never create a second *user* to rotate — rotate the *key* on the existing least-privilege user (see `infra/iam-policy.json`).
+5. Never create a second *user* to rotate — rotate the *key* on the existing least-privilege user, scoped to the `videos/` prefix only.
 
 ### JWT_SECRET
 1. Generate a new value: `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`.
 2. Update `JWT_SECRET` in Render's environment variables and redeploy.
-3. **Caveat with the current session design** (see `SECURITY_AUDIT.md` SEC-03): rotating this secret immediately invalidates every existing session, since there is no `tokenVersion`/refresh mechanism yet — every logged-in user gets logged out. That's expected and safe; it's also the only way to force a full logout today if a token is known to be compromised.
+3. This invalidates every existing *access* token immediately (they're verified by signature, not looked up), so every logged-in user's next request gets a 401. Their browser then silently tries `/auth/refresh` — which also fails, since refresh tokens aren't signed with `JWT_SECRET` and don't become invalid on their own, but the access token issued from that refresh attempt still needs the new secret to verify going forward, so in practice everyone ends up needing to log in again. That's expected and safe; it's also the bluntest way to force a full logout everywhere if a token is known to be compromised. For a *targeted* single-account logout-everywhere instead, see the `tokenVersion` mechanism in `SECURITY_AUDIT.md` SEC-03 — a password reset already triggers this automatically.
 
 ### Google OAuth client
 1. Google Cloud Console → APIs & Services → Credentials → the OAuth 2.0 Client ID.

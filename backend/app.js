@@ -1,23 +1,52 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const mongoose = require('mongoose');
+const cookieParser = require('cookie-parser');
 const videoRoutes = require('./routes/videoRoutes');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
+const { csrfOriginCheck, getAllowedOrigins } = require('./middleware/csrf');
+
+// Defence in depth under SEC-06/SEC-26: every string field that reaches a
+// query filter is already pinned to z.string() by middleware/validate.js,
+// but sanitizeFilter strips Mongo operators from any filter object as a
+// second layer. strictQuery rejects filter paths that aren't in the
+// schema instead of silently casting them.
+mongoose.set('sanitizeFilter', true);
+mongoose.set('strictQuery', true);
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Render sits in front of this app behind exactly one reverse-proxy hop —
+// trusting that (and only that) hop means req.ip reflects the real client,
+// which both rate limiting and the CSRF check below rely on.
+app.set('trust proxy', 1);
+
+// Security middleware. This is a pure JSON API with no HTML/static assets
+// of its own, so a locked-down CSP (default-src 'none') is safe — it only
+// ever matters if a browser ever tried to render one of these responses
+// as a document, which never happens in normal use.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  crossOriginResourcePolicy: { policy: 'same-origin' },
+  hsts: {
+    maxAge: 63072000, // 2 years
+    includeSubDomains: true,
+  },
+}));
 app.use(cors({
-  origin: [
-    'https://mkmutaki.github.io',
-    'http://localhost:8080',
-    'http://localhost:3000'
-  ],
+  origin: (origin, callback) => callback(null, !origin || getAllowedOrigins().includes(origin)),
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
+app.use(cookieParser());
+app.use(csrfOriginCheck);
 
 // Simple health check endpoint
 app.get('/api/health', (req, res) => {

@@ -1,11 +1,11 @@
 const request = require('supertest');
-const { app, createUserAndToken } = require('./helpers');
+const { app, createUserAndAgent } = require('./helpers');
 
 describe('GET /api/profile', () => {
   it('returns the profile for the authenticated user', async () => {
-    const { token, email } = await createUserAndToken();
+    const { agent, email } = await createUserAndAgent();
 
-    const res = await request(app).get('/api/profile').set('Authorization', `Bearer ${token}`);
+    const res = await agent.get('/api/profile');
 
     expect(res.status).toBe(200);
     expect(res.body.email).toBe(email);
@@ -20,12 +20,9 @@ describe('GET /api/profile', () => {
 
 describe('PUT /api/profile/update', () => {
   it('updates username and date of birth', async () => {
-    const { token } = await createUserAndToken();
+    const { agent } = await createUserAndAgent();
 
-    const res = await request(app)
-      .put('/api/profile/update')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ username: 'Ghost', dateOfBirth: '1995-05-05' });
+    const res = await agent.put('/api/profile/update').send({ username: 'Ghost', dateOfBirth: '1995-05-05' });
 
     expect(res.status).toBe(200);
     expect(res.body.user.profile.username).toBe('Ghost');
@@ -33,23 +30,17 @@ describe('PUT /api/profile/update', () => {
   });
 
   it('rejects a missing date of birth', async () => {
-    const { token } = await createUserAndToken();
+    const { agent } = await createUserAndAgent();
 
-    const res = await request(app)
-      .put('/api/profile/update')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ username: 'Ghost' });
+    const res = await agent.put('/api/profile/update').send({ username: 'Ghost' });
 
     expect(res.status).toBe(400);
   });
 
   it('rejects a future date of birth', async () => {
-    const { token } = await createUserAndToken();
+    const { agent } = await createUserAndAgent();
 
-    const res = await request(app)
-      .put('/api/profile/update')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ dateOfBirth: '2999-01-01' });
+    const res = await agent.put('/api/profile/update').send({ dateOfBirth: '2999-01-01' });
 
     expect(res.status).toBe(400);
   });
@@ -57,12 +48,9 @@ describe('PUT /api/profile/update', () => {
 
 describe('POST /api/profile/onboarding', () => {
   it('sets username, autoLockMinutes and marks onboarding complete', async () => {
-    const { token } = await createUserAndToken();
+    const { agent } = await createUserAndAgent();
 
-    const res = await request(app)
-      .post('/api/profile/onboarding')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ username: 'Callsign', autoLockMinutes: 15 });
+    const res = await agent.post('/api/profile/onboarding').send({ username: 'Callsign', autoLockMinutes: 15 });
 
     expect(res.status).toBe(200);
     expect(res.body.user.profile.username).toBe('Callsign');
@@ -71,23 +59,17 @@ describe('POST /api/profile/onboarding', () => {
   });
 
   it('rejects an invalid auto-lock interval', async () => {
-    const { token } = await createUserAndToken();
+    const { agent } = await createUserAndAgent();
 
-    const res = await request(app)
-      .post('/api/profile/onboarding')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ autoLockMinutes: 999 });
+    const res = await agent.post('/api/profile/onboarding').send({ autoLockMinutes: 999 });
 
     expect(res.status).toBe(400);
   });
 
   it('rejects an empty callsign', async () => {
-    const { token } = await createUserAndToken();
+    const { agent } = await createUserAndAgent();
 
-    const res = await request(app)
-      .post('/api/profile/onboarding')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ username: '   ' });
+    const res = await agent.post('/api/profile/onboarding').send({ username: '   ' });
 
     expect(res.status).toBe(400);
   });

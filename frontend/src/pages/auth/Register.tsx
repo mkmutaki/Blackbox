@@ -3,12 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
+import { validatePasswordComposition } from '@/lib/passwordPolicy';
 
 type Step = 'initial' | 'name' | 'birthday' | 'email' | 'password';
 
@@ -152,8 +154,9 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    const compositionError = validatePasswordComposition(password);
+    if (compositionError) {
+      setError(compositionError);
       return;
     }
 
@@ -379,10 +382,9 @@ export default function Register() {
                 <Label htmlFor="password" className={fieldLabelClass}>
                   Password
                 </Label>
-                <Input
+                <PasswordInput
                   id="password"
                   name="password"
-                  type="password"
                   autoComplete="new-password"
                   autoFocus
                   required
@@ -391,21 +393,24 @@ export default function Register() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="font-mono"
                 />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  At least 8 characters, with an uppercase letter, a number, and a special character.
+                </p>
               </div>
               <div>
                 <Label htmlFor="confirmPassword" className={fieldLabelClass}>
                   Confirm Password
                 </Label>
-                <Input
+                <PasswordInput
                   id="confirmPassword"
                   name="confirmPassword"
-                  type="password"
                   autoComplete="new-password"
                   required
                   placeholder="Confirm Password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="font-mono"
+                  blockPaste
                 />
               </div>
             </div>

@@ -1,20 +1,60 @@
-const jwt = require('jsonwebtoken');
+const crypto = require('node:crypto');
 const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
+const ActionToken = require('../models/ActionToken');
 const googleAuthService = require('../services/googleAuth');
+const { signAccessToken } = require('../services/jwt');
+const { generateRawToken, hashToken } = require('../services/tokens');
+const { validatePassword } = require('../services/passwordPolicy');
+// Not destructured — tests spy on this module's own methods (vi.spyOn), the
+// same reason services/googleAuth.js is referenced this way: a destructured
+// reference is bound before a spy can ever intercept it.
+const emailService = require('../services/email');
+const { toSafeUser } = require('../services/userView');
+const {
+  REFRESH_TOKEN_COOKIE,
+  REFRESH_TOKEN_MAX_AGE_MS,
+  setAccessTokenCookie,
+  setRefreshTokenCookie,
+  clearAuthCookies,
+} = require('../services/cookies');
+
+const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+const publicUser = toSafeUser;
+
+const issueRefreshToken = async (user, familyId) => {
+  const rawToken = generateRawToken();
+  await RefreshToken.create({
+    tokenHash: hashToken(rawToken),
+    userId: user._id,
+    familyId,
+    expiresAt: new Date(Date.now() + REFRESH_TOKEN_MAX_AGE_MS),
+  });
+  return rawToken;
+};
+
+// Starts a brand-new session (new refresh-token family) and sets both
+// cookies. Used by register/login/google — each is a fresh login event,
+// never a continuation of an existing family (that's what /refresh is for).
+const issueNewSession = async (res, user) => {
+  const familyId = crypto.randomUUID();
+  const refreshToken = await issueRefreshToken(user, familyId);
+  setAccessTokenCookie(res, signAccessToken(user));
+  setRefreshTokenCookie(res, refreshToken);
+};
 
 // @route   POST /api/auth/register
 // @desc    Register a new user
 // @access  Public
 const register = async (req, res) => {
   try {
+    // Presence, type and length are already enforced by the registerSchema
+    // validate() middleware in authRoutes.js — only date-of-birth semantics
+    // and password composition need checking here.
     const { email, password, fullName, dateOfBirth } = req.body;
 
-    // Validate inputs
-    if (!email || !password || !fullName || !dateOfBirth) {
-      return res.status(400).json({ error: 'Please provide full name, date of birth, email and password' });
-    }
-
-    // Validate date of birth
     const birthDate = new Date(dateOfBirth);
     if (isNaN(birthDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date of birth' });
@@ -24,10 +64,17 @@ const register = async (req, res) => {
       return res.status(400).json({ error: 'Date of birth cannot be in the future' });
     }
 
+    const passwordError = await validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      // Generic on purpose (SEC-10) — doesn't confirm this email is already
+      // registered.
+      return res.status(400).json({ error: 'Unable to complete registration. If you already have an account, try signing in instead.' });
     }
 
     // Create new user (password is hashed in the pre-save hook)
@@ -44,20 +91,18 @@ const register = async (req, res) => {
     });
     await user.save();
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    // Return user info (excluding password) and token
-    res.status(201).json({
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        authProvider: user.authProvider,
-        profile: user.profile,
-        createdAt: user.createdAt
-      }
+    const rawVerifyToken = generateRawToken();
+    await ActionToken.create({
+      tokenHash: hashToken(rawVerifyToken),
+      userId: user._id,
+      purpose: 'email_verify',
+      expiresAt: new Date(Date.now() + EMAIL_VERIFY_TTL_MS),
     });
+    await emailService.sendVerificationEmail(user, rawVerifyToken);
+
+    await issueNewSession(res, user);
+
+    res.status(201).json({ user: publicUser(user) });
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -69,14 +114,11 @@ const register = async (req, res) => {
 // @access  Public
 const login = async (req, res) => {
   try {
+    // loginSchema's validate() middleware already pinned email/password to
+    // strings, which is the actual SEC-06 fix — an operator payload like
+    // {"$ne": null} never reaches this query.
     const { email, password } = req.body;
 
-    // Validate inputs
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Please provide email and password' });
-    }
-
-    // Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -88,20 +130,9 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    await issueNewSession(res, user);
 
-    // Return user info and token
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        authProvider: user.authProvider,
-        profile: user.profile,
-        createdAt: user.createdAt
-      }
-    });
+    res.json({ user: publicUser(user) });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -137,18 +168,32 @@ const googleAuth = async (req, res) => {
     let user = await User.findOne({ googleId });
 
     if (!user) {
-      user = await User.findOne({ email });
+      const existingLocal = await User.findOne({ email });
 
-      if (user) {
-        // Link the Google identity to the existing account
-        user.googleId = googleId;
-        await user.save();
+      if (existingLocal) {
+        // SEC-01: only link when the existing local account's email is
+        // already independently verified. Otherwise this is exactly the
+        // account-takeover shape — someone could have pre-registered this
+        // email with a password of their own choosing, and silently
+        // linking here would hand them the account the real owner is
+        // trying to sign into right now. Make them prove ownership the
+        // normal way (password sign-in, or reset it) instead.
+        if (!existingLocal.emailVerified) {
+          return res.status(409).json({
+            error: 'An account with this email already exists. Sign in with your password (or reset it) to link Google.',
+          });
+        }
+
+        existingLocal.googleId = googleId;
+        await existingLocal.save();
+        user = existingLocal;
       } else {
         const googleName = name || email.split('@')[0];
         user = new User({
           email,
           googleId,
           authProvider: 'google',
+          emailVerified: true, // Google already verified this on their end
           profile: {
             fullName: googleName,
             username: googleName,
@@ -159,20 +204,197 @@ const googleAuth = async (req, res) => {
       }
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    await issueNewSession(res, user);
 
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        authProvider: user.authProvider,
-        profile: user.profile,
-        createdAt: user.createdAt
-      }
-    });
+    res.json({ user: publicUser(user) });
   } catch (error) {
     console.error('Google auth error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// @route   POST /api/auth/logout
+// @desc    Revoke the current session's refresh-token family and clear cookies
+// @access  Public (a missing/invalid token is a no-op, not an error)
+const logout = async (req, res) => {
+  try {
+    const rawRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+
+    if (rawRefreshToken) {
+      const existing = await RefreshToken.findOne({ tokenHash: hashToken(rawRefreshToken) });
+      if (existing) {
+        await RefreshToken.updateMany({ familyId: existing.familyId }, { $set: { revokedAt: new Date() } });
+      }
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    // fall through — clearing cookies client-side still ends the session
+    // from the browser's point of view even if the DB update above failed.
+  }
+
+  clearAuthCookies(res);
+  res.json({ message: 'Logged out' });
+};
+
+// @route   POST /api/auth/refresh
+// @desc    Rotate the refresh token and issue a new access token
+// @access  Public (requires the refresh-token cookie)
+const refresh = async (req, res) => {
+  try {
+    const rawRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+    if (!rawRefreshToken) {
+      return res.status(401).json({ error: 'No refresh token' });
+    }
+
+    const tokenHash = hashToken(rawRefreshToken);
+    const existing = await RefreshToken.findOne({ tokenHash });
+
+    if (!existing) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    if (existing.revokedAt || existing.replacedByHash) {
+      // This exact token was already rotated away (or revoked) once — the
+      // legitimate client would always be holding the newest token in the
+      // chain, so presenting an old one again means it was copied/stolen.
+      // Burn the whole family and bump tokenVersion so even a currently
+      // live access token from this chain stops working immediately.
+      await RefreshToken.updateMany({ familyId: existing.familyId }, { $set: { revokedAt: new Date() } });
+      await User.findByIdAndUpdate(existing.userId, { $inc: { tokenVersion: 1 } });
+      clearAuthCookies(res);
+      return res.status(401).json({ error: 'Session invalid — please sign in again' });
+    }
+
+    if (existing.expiresAt < new Date()) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: 'Refresh token expired' });
+    }
+
+    const user = await User.findById(existing.userId);
+    if (!user) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    const newRawToken = await issueRefreshToken(user, existing.familyId);
+    existing.replacedByHash = hashToken(newRawToken);
+    await existing.save();
+
+    setAccessTokenCookie(res, signAccessToken(user));
+    setRefreshTokenCookie(res, newRawToken);
+
+    res.json({ user: publicUser(user) });
+  } catch (error) {
+    console.error('Refresh error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// @route   POST /api/auth/verify-email
+// @desc    Consume an emailed verification token
+// @access  Public
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'Missing token' });
+    }
+
+    const actionToken = await ActionToken.findOne({ tokenHash: hashToken(token), purpose: 'email_verify' });
+
+    if (!actionToken || actionToken.usedAt || actionToken.expiresAt < new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired verification link' });
+    }
+
+    await User.findByIdAndUpdate(actionToken.userId, { emailVerified: true });
+    actionToken.usedAt = new Date();
+    await actionToken.save();
+
+    res.json({ message: 'Email verified' });
+  } catch (error) {
+    console.error('Verify email error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// @route   POST /api/auth/request-password-reset
+// @desc    Email a password-reset link if the address has an account
+// @access  Public
+const requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+    // Identical response whether or not the account exists (SEC-10).
+    const genericResponse = { message: 'If an account with that email exists, a reset link has been sent.' };
+
+    if (!email || typeof email !== 'string') {
+      return res.json(genericResponse);
+    }
+
+    const user = await User.findOne({ email });
+    if (user) {
+      const rawToken = generateRawToken();
+      await ActionToken.create({
+        tokenHash: hashToken(rawToken),
+        userId: user._id,
+        purpose: 'password_reset',
+        expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+      });
+      await emailService.sendPasswordResetEmail(user, rawToken);
+    }
+
+    res.json(genericResponse);
+  } catch (error) {
+    console.error('Request password reset error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// @route   POST /api/auth/reset-password
+// @desc    Consume an emailed reset token and set a new password
+// @access  Public
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    const actionToken = await ActionToken.findOne({ tokenHash: hashToken(token), purpose: 'password_reset' });
+
+    if (!actionToken || actionToken.usedAt || actionToken.expiresAt < new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    const passwordError = await validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
+    const user = await User.findById(actionToken.userId);
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    user.password = password; // re-hashed by the pre-save hook
+    // Completing a reset is equally strong proof of inbox control as
+    // clicking the verification link — and closes the SEC-01 loop: an
+    // attacker who pre-registered this email never controls the inbox, so
+    // they can never complete this step.
+    user.emailVerified = true;
+    user.tokenVersion += 1;
+    await user.save();
+
+    actionToken.usedAt = new Date();
+    await actionToken.save();
+
+    // A password reset is often a response to a suspected compromise —
+    // don't leave any other device's session alive.
+    await RefreshToken.updateMany({ userId: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+
+    res.json({ message: 'Password reset successfully. Please sign in again.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -182,17 +404,27 @@ const googleAuth = async (req, res) => {
 // @access  Private
 const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password -googleId');
+    const user = await User.findById(req.user.userId);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json(user);
+    res.json(toSafeUser(user));
   } catch (error) {
     console.error('Get current user error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
-module.exports = { register, login, googleAuth, getCurrentUser };
+module.exports = {
+  register,
+  login,
+  googleAuth,
+  logout,
+  refresh,
+  verifyEmail,
+  requestPasswordReset,
+  resetPassword,
+  getCurrentUser,
+};
