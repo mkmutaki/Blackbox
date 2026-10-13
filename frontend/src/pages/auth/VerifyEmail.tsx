@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { post } from '@/services/api';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 type Status = 'verifying' | 'success' | 'error';
 
@@ -26,10 +27,10 @@ export default function VerifyEmail() {
       .then(() => {
         if (!cancelled) setStatus('success');
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         if (cancelled) return;
         setStatus('error');
-        setError(err.response?.data?.error || 'This verification link is invalid or has expired.');
+        setError(getErrorMessage(err, 'This verification link is invalid or has expired.'));
       });
 
     return () => {

@@ -1,5 +1,7 @@
 
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
+import tailwindcssTextShadow from "@designbycode/tailwindcss-text-shadow";
 
 export default {
   darkMode: ["class"],
@@ -83,8 +85,8 @@ export default {
     },
   },
   plugins: [
-    require("tailwindcss-animate"),
-    require("@designbycode/tailwindcss-text-shadow")({
+    tailwindcssAnimate,
+    tailwindcssTextShadow({
       shadowColor: "rgba(0, 0, 0, 0)",
       shadowBlur: "2px",
       shadowOffsetX: "1px",

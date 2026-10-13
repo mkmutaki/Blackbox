@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { cn, getSynodicDay } from '@/lib/utils';
 import { ArrowLeft, Lock, ShieldCheck, Video } from 'lucide-react';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 const AUTO_LOCK_CHOICES = [
   { minutes: 5, label: '5 min' },
@@ -50,10 +51,8 @@ export function OnboardingFlow({ isOpen, onComplete }: OnboardingFlowProps) {
         autoLockMinutes,
       });
       onComplete();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.error || 'Could not save your answers. Please try again.'
-      );
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not save your answers. Please try again.'));
     } finally {
       setIsSaving(false);
     }

@@ -89,19 +89,19 @@ export const get = async <T>(url: string, config?: AxiosRequestConfig): Promise<
 };
 
 // Generic POST request
-export const post = async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+export const post = async <T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
   const response = await api.post<T>(url, data, config);
   return response.data;
 };
 
 // Generic PUT request
-export const put = async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+export const put = async <T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
   const response = await api.put<T>(url, data, config);
   return response.data;
 };
 
 // Generic PATCH request
-export const patch = async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+export const patch = async <T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
   const response = await api.patch<T>(url, data, config);
   return response.data;
 };

@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -44,11 +45,8 @@ export default function Login() {
           : 'Welcome back!',
       });
       navigate('/home');
-    } catch (error: any) {
-      setError(
-        error.response?.data?.error || 
-        'Login failed. Please check your credentials and try again.'
-      );
+    } catch (error) {
+      setError(getErrorMessage(error, 'Login failed. Please check your credentials and try again.'));
     } finally {
       setIsLoading(false);
     }

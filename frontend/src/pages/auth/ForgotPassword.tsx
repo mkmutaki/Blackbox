@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { post } from '@/services/api';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -29,8 +30,8 @@ export default function ForgotPassword() {
     try {
       await post('/auth/request-password-reset', { email: email.trim() });
       setSubmitted(true);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Something went wrong. Please try again.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Something went wrong. Please try again.'));
     } finally {
       setIsLoading(false);
     }

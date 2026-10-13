@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 export function ProfileSettings() {
   const [username, setUsername] = useState('');
@@ -78,11 +79,8 @@ export function ProfileSettings() {
         title: 'Profile updated',
         description: 'Your profile has been successfully updated.',
       });
-    } catch (error: any) {
-      setError(
-        error.response?.data?.error ||
-        'Failed to update profile. Please try again.'
-      );
+    } catch (error) {
+      setError(getErrorMessage(error, 'Failed to update profile. Please try again.'));
     } finally {
       setIsLoading(false);
     }

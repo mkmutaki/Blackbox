@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 interface ProfileSetupProps {
   isOpen: boolean;
@@ -57,11 +58,8 @@ export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
       });
 
       onComplete();
-    } catch (error: any) {
-      setError(
-        error.response?.data?.error ||
-        'Failed to save profile. Please try again.'
-      );
+    } catch (error) {
+      setError(getErrorMessage(error, 'Failed to save profile. Please try again.'));
     } finally {
       setIsLoading(false);
     }

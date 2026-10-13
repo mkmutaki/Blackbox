@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # frontend/, backend/ and the repo root each keep their own
+  # package-lock.json (SEC-16) despite the root's npm "workspaces" field —
+  # three independent ecosystems, each needs its own entry here.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

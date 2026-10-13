@@ -9,7 +9,7 @@ interface VideoPlayerProps {
   title: string;
   url: string;
   iv: string;
-  jwk: any;
+  jwk: JsonWebKey | string;
   open: boolean;
   onClose: () => void;
 }

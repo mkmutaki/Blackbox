@@ -11,6 +11,7 @@ import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { validatePasswordComposition } from '@/lib/passwordPolicy';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 type Step = 'initial' | 'name' | 'birthday' | 'email' | 'password';
 
@@ -169,11 +170,8 @@ export default function Register() {
         description: 'Welcome to Blackbox!',
       });
       navigate('/home');
-    } catch (error: any) {
-      setError(
-        error.response?.data?.error ||
-        'Registration failed. Please try again.'
-      );
+    } catch (error) {
+      setError(getErrorMessage(error, 'Registration failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }

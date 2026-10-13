@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, ReactNode } from 'react';
 import api, { setUnauthorizedHandler } from '../services/api';
+import { getErrorMessage } from '../lib/errorMessage';
 
 // Types
 type User = {
@@ -92,9 +93,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(res.data.user);
       setIsLoggedIn(true);
       setIsLoading(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Registration error:', error);
-      setError(error.response?.data?.error || 'Registration failed');
+      setError(getErrorMessage(error, 'Registration failed'));
       setIsLoading(false);
       throw error;
     }
@@ -118,9 +119,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
 
       return user;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login error:', error);
-      setError(error.response?.data?.error || 'Invalid credentials');
+      setError(getErrorMessage(error, 'Invalid credentials'));
       setIsLoading(false);
       throw error;
     }
@@ -137,9 +138,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(res.data.user);
       setIsLoggedIn(true);
       setIsLoading(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Google login error:', error);
-      setError(error.response?.data?.error || 'Google sign-in failed');
+      setError(getErrorMessage(error, 'Google sign-in failed'));
       setIsLoading(false);
       throw error;
     }
@@ -171,9 +172,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Update user state with new profile data
       setUser(res.data.user);
       setIsLoading(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Profile update error:', error);
-      setError(error.response?.data?.error || 'Profile update failed');
+      setError(getErrorMessage(error, 'Profile update failed'));
       setIsLoading(false);
       throw error;
     }
@@ -186,9 +187,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await api.post('/profile/onboarding', answers);
       setUser(res.data.user);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Onboarding error:', error);
-      setError(error.response?.data?.error || 'Could not save your answers');
+      setError(getErrorMessage(error, 'Could not save your answers'));
       throw error;
     }
   };

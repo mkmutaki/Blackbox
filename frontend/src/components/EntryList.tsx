@@ -13,7 +13,7 @@ type Video = {
   createdAt: string;
   url: string;
   iv: string;
-  jwk: any;
+  jwk: JsonWebKey | string;
   entryNumber: number;
   synodicDay: number;
   category: string;
@@ -43,7 +43,7 @@ const EntryList = () => {
     try {
       const data = await get<Video[]>('/videos');
       setVideos(data);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to fetch videos:', err);
       setError('Failed to load videos. Please try again later.');
     } finally {

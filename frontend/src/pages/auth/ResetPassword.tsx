@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/use-toast';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { post } from '@/services/api';
 import { validatePasswordComposition } from '@/lib/passwordPolicy';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -46,8 +47,8 @@ export default function ResetPassword() {
         description: 'Please sign in with your new password.',
       });
       navigate('/login');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'This reset link is invalid or has expired.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'This reset link is invalid or has expired.'));
     } finally {
       setIsLoading(false);
     }

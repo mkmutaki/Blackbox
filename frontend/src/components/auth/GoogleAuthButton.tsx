@@ -2,6 +2,7 @@ import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/components/ui/use-toast';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 interface GoogleAuthButtonProps {
   text?: 'signin_with' | 'signup_with' | 'continue_with';
@@ -25,8 +26,8 @@ export function GoogleAuthButton({ text = 'continue_with', onError }: GoogleAuth
         description: 'Welcome to Blackbox!',
       });
       navigate('/home');
-    } catch (error: any) {
-      onError(error.response?.data?.error || 'Google sign-in failed. Please try again.');
+    } catch (error) {
+      onError(getErrorMessage(error, 'Google sign-in failed. Please try again.'));
     }
   };
 

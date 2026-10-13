@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "build:prod": "vite build --mode production",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "preview": "vite preview",
     "deploy": "npm run build:prod && rm -rf ../docs/assets && cp -R dist/. ../docs/",
     "test": "vitest run",
@@ -43,7 +44,7 @@
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react-swc": "^3.11.0",
+    "@vitejs/plugin-react-swc": "^4.3.3",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
@@ -55,7 +56,16 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1",
+    "vite": "^8.3.4",
     "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "rollup": "4.64.5",
+    "yaml": "2.9.1",
+    "flatted": "3.4.4",
+    "browserslist": "4.29.3",
+    "source-map-js": "1.2.2",
+    "js-yaml": "4.3.2",
+    "glob": "10.5.0"
   }
 }
