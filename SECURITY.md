@@ -121,6 +121,50 @@ Even with the above accepted risk, client-side encryption still means:
   the planned custom-domain host — inert on GitHub Pages, ready for when
   that migration happens.
 
+## Account lifecycle: minimum age and deletion
+
+- **Minimum age is 8, enforced server-side.** `dateOfBirth` was previously
+  only checked against the future; there was no actual minimum-age gate
+  anywhere, despite three separate frontend forms each having their own
+  (inconsistent, imprecise) client-side `age < 13` check. The real control
+  is `backend/services/agePolicy.js`'s `meetsMinimumAge`, checked on
+  registration and on every profile update, so a later edit can't move an
+  account's age below the floor either. The frontend copy
+  (`frontend/src/lib/agePolicy.ts`) mirrors the same month/day-aware logic
+  purely for instant UX feedback — the server is what actually enforces it.
+- **Account deletion** (`DELETE /api/auth/account`) requires
+  re-authentication right now — the current session cookie alone isn't
+  enough for something this destructive. Local accounts re-enter their
+  password; Google accounts sign in with Google again, and the resulting
+  credential's `sub` is checked against the account's stored `googleId`.
+  The actual removal is `backend/services/accountDeletion.js`'s
+  `deleteUserAccount(userId)`: an idempotent cascade that deletes the
+  user's videos (database records and S3 objects — continuing past an
+  individual S3 failure rather than aborting), refresh tokens, action
+  tokens, the per-user entry counter, and finally the `User` document.
+  Written as a standalone, reusable service specifically so a future admin
+  deletion path calls the same function instead of a second copy of this
+  logic.
+- **`profile.location` stays**, deliberately — it's reserved for a planned
+  feature (user-controlled location services shown in the recording UI),
+  not dead schema. Whoever builds that feature should treat it as a fresh
+  privacy review, not an extension of what's here: continuous/live
+  location is a materially different sensitivity level than a one-time
+  profile field.
+
+## Security event logging
+
+`backend/services/securityLog.js` writes one structured JSON line per
+security-relevant event to stdout: `login_success`, `login_failure`,
+`password_change`, `google_link_success`, `google_link_blocked_unverified`,
+`refresh_token_reuse`, `account_deleted`. Passwords, tokens, `jwk`, and `iv`
+are redacted outright; emails are masked (`j***@example.com`) rather than
+either logged in full or dropped, since knowing *which* account an event
+concerns is the point of a security log. This is deliberately not
+persisted to a database yet — it's the substrate a future admin-panel
+audit log is meant to build on (an append-only `AuditLog` model, planned),
+not a replacement for it.
+
 ## Known limitation: email delivery is stubbed
 
 Email verification and password reset are fully implemented end to end —
@@ -184,3 +228,40 @@ or see their install docs) — install it locally for the check to actually
 run; it currently warns rather than blocks if it's missing, since it isn't
 distributed via npm. CI (`.github/workflows/ci.yml`) runs the same scan on
 every push and pull request as the enforced backstop.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push/PR: the gitleaks scan above,
+frontend lint/typecheck/tests/production build, backend tests, the
+Playwright e2e smoke test, `npm audit --audit-level=high` (a hard gate on
+`backend/`, which is currently clean; informational-only on `frontend/`
+until the Tailwind v4 migration — see `SECURITY_AUDIT.md` SEC-28 — since
+otherwise every PR would fail on a known, deferred, dev-toolchain-only
+finding), and CodeQL. `.github/dependabot.yml` watches all three npm
+"ecosystems" (root, `frontend/`, `backend/` — see the note below for why
+there are three) plus GitHub Actions itself.
+
+## Running `npm install` in this repo — read this before you do
+
+The root `package.json` declares an npm `"workspaces"` field
+(`["frontend", "backend"]`), **but** `frontend/` and `backend/` each also
+keep their own fully independent `package-lock.json`. That combination is
+a footgun: plain `npm install` or `npm ci`, run from *inside* `frontend/`
+or `backend/`, gets silently redirected by npm to resolve against the
+**root** instead of that directory's own lockfile — see
+`SECURITY_AUDIT.md` SEC-31 for exactly what that corrupted during one
+hardening pass (a deleted lockfile, a rewritten one, versions drifting out
+of sync with what's recorded) using nothing but ordinary, expected
+commands.
+
+**Always pass both flags** when installing inside either directory:
+
+```
+npm install --workspaces=false --include-workspace-root=false
+npm ci --workspaces=false --include-workspace-root=false
+npm audit fix --workspaces=false --include-workspace-root=false
+```
+
+`.github/workflows/ci.yml` already does this for every install step. This
+applies to local development too — a plain `cd backend && npm install`
+without the flags can quietly rewrite the wrong lockfile.

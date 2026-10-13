@@ -11,6 +11,7 @@ import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { validatePasswordComposition } from '@/lib/passwordPolicy';
+import { MIN_AGE_YEARS, meetsMinimumAge } from '@/lib/agePolicy';
 import { getErrorMessage } from '@/lib/errorMessage';
 
 type Step = 'initial' | 'name' | 'birthday' | 'email' | 'password';
@@ -120,8 +121,13 @@ export default function Register() {
       return;
     }
 
-    if (age > 120 || age < 13) {
+    if (age > 120) {
       setError('Please enter a valid date of birth');
+      return;
+    }
+
+    if (!meetsMinimumAge(birthDate, today)) {
+      setError(`You must be at least ${MIN_AGE_YEARS} years old to use Blackbox`);
       return;
     }
 

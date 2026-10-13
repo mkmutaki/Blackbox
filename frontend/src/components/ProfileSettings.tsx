@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
+import { MIN_AGE_YEARS, meetsMinimumAge } from '@/lib/agePolicy';
 import { getErrorMessage } from '@/lib/errorMessage';
+import { DeleteAccountSection } from '@/components/DeleteAccountSection';
 
 export function ProfileSettings() {
   const [username, setUsername] = useState('');
@@ -59,8 +61,13 @@ export function ProfileSettings() {
       return;
     }
 
-    if (age > 120 || age < 13) {
+    if (age > 120) {
       setError('Please enter a valid date of birth');
+      return;
+    }
+
+    if (!meetsMinimumAge(birthDate, today)) {
+      setError(`You must be at least ${MIN_AGE_YEARS} years old to use Blackbox`);
       return;
     }
 
@@ -93,71 +100,75 @@ export function ProfileSettings() {
   };
 
   return (
-    <form onSubmit={handleSave} className="space-y-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="fullName">Full name</Label>
-        <Input
-          id="fullName"
-          type="text"
-          value={user?.profile?.fullName || ''}
-          readOnly
-          disabled
-          className="font-mono"
-        />
-        <p className="text-xs text-muted-foreground">
-          Set when you created your account and cannot be changed.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
-        <Input
-          id="username"
-          type="text"
-          placeholder="Enter your username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="font-mono"
-          disabled={isLoading}
-        />
-        <p className="text-xs text-muted-foreground">
-          The name stamped on your mission logs.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="dateOfBirth">Date of Birth</Label>
-        <Input
-          id="dateOfBirth"
-          type="date"
-          value={dateOfBirth}
-          onChange={(e) => setDateOfBirth(e.target.value)}
-          className="font-mono"
-          disabled={isLoading}
-        />
-      </div>
-
-      <div className="flex gap-2 pt-4">
-        <Button type="submit" disabled={isLoading || !isDirty}>
-          {isLoading ? 'Saving...' : 'Save changes'}
-        </Button>
-        {isDirty && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleReset}
-            disabled={isLoading}
-          >
-            Reset
-          </Button>
+    <div className="space-y-8">
+      <form onSubmit={handleSave} className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
-      </div>
-    </form>
+
+        <div className="space-y-2">
+          <Label htmlFor="fullName">Full name</Label>
+          <Input
+            id="fullName"
+            type="text"
+            value={user?.profile?.fullName || ''}
+            readOnly
+            disabled
+            className="font-mono"
+          />
+          <p className="text-xs text-muted-foreground">
+            Set when you created your account and cannot be changed.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="username">Username</Label>
+          <Input
+            id="username"
+            type="text"
+            placeholder="Enter your username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="font-mono"
+            disabled={isLoading}
+          />
+          <p className="text-xs text-muted-foreground">
+            The name stamped on your mission logs.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="dateOfBirth">Date of Birth</Label>
+          <Input
+            id="dateOfBirth"
+            type="date"
+            value={dateOfBirth}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+            className="font-mono"
+            disabled={isLoading}
+          />
+        </div>
+
+        <div className="flex gap-2 pt-4">
+          <Button type="submit" disabled={isLoading || !isDirty}>
+            {isLoading ? 'Saving...' : 'Save changes'}
+          </Button>
+          {isDirty && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReset}
+              disabled={isLoading}
+            >
+              Reset
+            </Button>
+          )}
+        </div>
+      </form>
+
+      <DeleteAccountSection />
+    </div>
   );
 }

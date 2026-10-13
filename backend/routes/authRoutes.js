@@ -11,9 +11,10 @@ const {
   requestPasswordReset,
   resetPassword,
   getCurrentUser,
+  deleteAccount,
 } = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/authMiddleware');
-const { authIpLimiter, authAccountLimiter } = require('../middleware/rateLimit');
+const { authIpLimiter, authAccountLimiter, deleteAccountLimiter } = require('../middleware/rateLimit');
 const { validate } = require('../middleware/validate');
 
 // Pinning email to z.string().email() is the actual SEC-06 fix — an
@@ -52,6 +53,14 @@ const resetPasswordSchema = z.object({
   password: passwordInputSchema,
 });
 
+// Exactly one of these is actually required, depending on the account's
+// authProvider — the controller enforces that; this just pins whichever
+// is present to a sane type/length.
+const deleteAccountSchema = z.object({
+  password: z.string().min(1).max(256).optional(),
+  credential: z.string().min(1).optional(),
+});
+
 // validate() runs before the per-account limiter (not just before the
 // controller) so the limiter's key is read from the already-normalized
 // (trimmed/lowercased) email — otherwise varying case or whitespace on the
@@ -86,5 +95,11 @@ router.post('/reset-password', authIpLimiter, validate(resetPasswordSchema), res
 
 // Get current user (protected route)
 router.get('/me', authMiddleware, getCurrentUser);
+
+// Permanently delete the caller's own account — requires re-authentication
+// (password, or a fresh Google credential for Google accounts), enforced
+// in the controller since which field is required depends on the
+// account's authProvider.
+router.delete('/account', authMiddleware, deleteAccountLimiter, validate(deleteAccountSchema), deleteAccount);
 
 module.exports = router;

@@ -6,6 +6,9 @@ const googleAuthService = require('../services/googleAuth');
 const { signAccessToken } = require('../services/jwt');
 const { generateRawToken, hashToken } = require('../services/tokens');
 const { validatePassword } = require('../services/passwordPolicy');
+const { meetsMinimumAge, MIN_AGE_YEARS } = require('../services/agePolicy');
+const { deleteUserAccount } = require('../services/accountDeletion');
+const { logSecurityEvent } = require('../services/securityLog');
 // Not destructured — tests spy on this module's own methods (vi.spyOn), the
 // same reason services/googleAuth.js is referenced this way: a destructured
 // reference is bound before a spy can ever intercept it.
@@ -62,6 +65,10 @@ const register = async (req, res) => {
 
     if (birthDate > new Date()) {
       return res.status(400).json({ error: 'Date of birth cannot be in the future' });
+    }
+
+    if (!meetsMinimumAge(birthDate)) {
+      return res.status(400).json({ error: `You must be at least ${MIN_AGE_YEARS} years old to use Blackbox` });
     }
 
     const passwordError = await validatePassword(password);
@@ -121,16 +128,19 @@ const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
+      logSecurityEvent('login_failure', { ip: req.ip, meta: { email, reason: 'unknown_email' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      logSecurityEvent('login_failure', { userId: user._id, ip: req.ip, meta: { email, reason: 'wrong_password' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     await issueNewSession(res, user);
+    logSecurityEvent('login_success', { userId: user._id, ip: req.ip, meta: { email } });
 
     res.json({ user: publicUser(user) });
   } catch (error) {
@@ -179,6 +189,11 @@ const googleAuth = async (req, res) => {
         // trying to sign into right now. Make them prove ownership the
         // normal way (password sign-in, or reset it) instead.
         if (!existingLocal.emailVerified) {
+          logSecurityEvent('google_link_blocked_unverified', {
+            userId: existingLocal._id,
+            ip: req.ip,
+            meta: { email },
+          });
           return res.status(409).json({
             error: 'An account with this email already exists. Sign in with your password (or reset it) to link Google.',
           });
@@ -187,6 +202,7 @@ const googleAuth = async (req, res) => {
         existingLocal.googleId = googleId;
         await existingLocal.save();
         user = existingLocal;
+        logSecurityEvent('google_link_success', { userId: user._id, ip: req.ip, meta: { email } });
       } else {
         const googleName = name || email.split('@')[0];
         user = new User({
@@ -262,6 +278,7 @@ const refresh = async (req, res) => {
       // live access token from this chain stops working immediately.
       await RefreshToken.updateMany({ familyId: existing.familyId }, { $set: { revokedAt: new Date() } });
       await User.findByIdAndUpdate(existing.userId, { $inc: { tokenVersion: 1 } });
+      logSecurityEvent('refresh_token_reuse', { userId: existing.userId, ip: req.ip, meta: { familyId: existing.familyId } });
       clearAuthCookies(res);
       return res.status(401).json({ error: 'Session invalid — please sign in again' });
     }
@@ -392,6 +409,8 @@ const resetPassword = async (req, res) => {
     // don't leave any other device's session alive.
     await RefreshToken.updateMany({ userId: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
 
+    logSecurityEvent('password_change', { userId: user._id, ip: req.ip, meta: { email: user.email } });
+
     res.json({ message: 'Password reset successfully. Please sign in again.' });
   } catch (error) {
     console.error('Reset password error:', error);
@@ -417,6 +436,63 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+// @route   DELETE /api/auth/account
+// @desc    Permanently delete the caller's own account: videos, S3
+//          objects, tokens and profile. Requires re-proving control of the
+//          account right now — the current short-lived access token alone
+//          isn't enough for a destructive, irreversible action like this.
+// @access  Private
+const deleteAccount = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.authProvider === 'google') {
+      const { credential } = req.body;
+      if (!credential) {
+        return res.status(400).json({ error: 'Please sign in with Google again to confirm.' });
+      }
+
+      let payload;
+      try {
+        payload = await googleAuthService.verifyGoogleToken(credential);
+      } catch (verifyError) {
+        return res.status(401).json({ error: 'Invalid Google credential' });
+      }
+
+      if (payload.sub !== user.googleId) {
+        return res.status(401).json({ error: 'That Google account does not match this account' });
+      }
+    } else {
+      const { password } = req.body;
+      if (!password) {
+        return res.status(400).json({ error: 'Password is required to delete your account' });
+      }
+
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Incorrect password' });
+      }
+    }
+
+    const result = await deleteUserAccount(user._id);
+
+    clearAuthCookies(res);
+    logSecurityEvent('account_deleted', {
+      userId: user._id,
+      ip: req.ip,
+      meta: { email: user.email, deletedVideoCount: result.deletedVideoCount },
+    });
+
+    res.json({ message: 'Account deleted' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -427,4 +503,5 @@ module.exports = {
   requestPasswordReset,
   resetPassword,
   getCurrentUser,
+  deleteAccount,
 };

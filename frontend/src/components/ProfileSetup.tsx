@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
+import { MIN_AGE_YEARS, meetsMinimumAge } from '@/lib/agePolicy';
 import { getErrorMessage } from '@/lib/errorMessage';
 
 interface ProfileSetupProps {
@@ -42,8 +43,13 @@ export function ProfileSetup({ isOpen, onComplete }: ProfileSetupProps) {
       return;
     }
 
-    if (age > 120 || age < 13) {
+    if (age > 120) {
       setError('Please enter a valid date of birth');
+      return;
+    }
+
+    if (!meetsMinimumAge(birthDate, today)) {
+      setError(`You must be at least ${MIN_AGE_YEARS} years old to use Blackbox`);
       return;
     }
 

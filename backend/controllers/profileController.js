@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { toSafeUser } = require('../services/userView');
+const { meetsMinimumAge, MIN_AGE_YEARS } = require('../services/agePolicy');
 
 // @route   PUT /api/profile/update
 // @desc    Update user profile
@@ -18,6 +19,10 @@ const updateProfile = async (req, res) => {
 
     if (birthDate > new Date()) {
       return res.status(400).json({ error: 'Date of birth cannot be in the future' });
+    }
+
+    if (!meetsMinimumAge(birthDate)) {
+      return res.status(400).json({ error: `You must be at least ${MIN_AGE_YEARS} years old to use Blackbox` });
     }
 
     // username is only overwritten if explicitly provided (e.g. Google

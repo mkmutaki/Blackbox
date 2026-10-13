@@ -31,25 +31,25 @@ than taken at face value. Findings SEC-24 through SEC-30 are new this pass.
 
 ## Summary table (sorted by severity)
 
-Status as of Group F (HTTP & frontend hardening) landing — Groups A-F are
-all now in. "Partial" means part of the finding is resolved and the rest is
-explicitly scoped to a later group — see that finding's detail section for
-exactly what's left. Groups G (privacy/data lifecycle), H (dependencies/CI)
-and Phase 3 (admin-panel readiness) remain.
+Status as of Group H (dependencies & CI) landing — Groups A-H are all now
+in. "Partial" means part of the finding is resolved and the rest is
+explicitly scoped to later work — see that finding's detail section for
+exactly what's left. Only Phase 3 (admin-panel readiness) remains.
 
 | ID | Severity | Status | Location | Finding |
 |---|---|---|---|---|
 | SEC-01 | **Critical** | ✅ Fixed | `backend/controllers/authController.js:114-160` | Google-linking account takeover |
-| SEC-02 | **Critical** | ⬜ Open | `frontend/index.html:28` | Third-party script on every page, including auth pages |
+| SEC-02 | **Critical** | ✅ Fixed | `frontend/index.html:28` | Third-party script on every page, including auth pages |
 | SEC-06 | High | ✅ Fixed | `backend/controllers/authController.js:28,80` | NoSQL operator injection via `email` |
-| SEC-26 | High | 🟨 Partial | `backend/package.json` (mongoose) | Mongoose CVEs: `$nor` sanitizeFilter bypass + prototype pollution |
+| SEC-26 | High | ✅ Fixed | `backend/package.json` (mongoose) | Mongoose CVEs: `$nor` sanitizeFilter bypass + prototype pollution |
 | SEC-03 | High | ✅ Fixed | `backend/middleware/authMiddleware.js:16`; `authController.js` | Session model: long-lived localStorage JWT, no revocation |
-| SEC-25 | High | ⬜ Open | `backend/package.json` (jsonwebtoken) | `jws` HMAC-verification CVE under your own session-token library |
+| SEC-25 | High | ✅ Fixed | `backend/package.json` (jsonwebtoken) | `jws` HMAC-verification CVE under your own session-token library |
 | SEC-04 | High | ✅ Fixed | `backend/routes/videoRoutes.js:8-10` | Unbounded upload (no multer size limit) |
 | SEC-05 | High | ✅ Fixed | `backend/app.js` / `server.js` (absent) | No rate limiting, no `trust proxy` |
-| SEC-27 | High | ⬜ Open | `backend/package.json` (express transitive) | `path-to-regexp` DoS + `body-parser` DoS CVEs |
+| SEC-27 | High | ✅ Fixed | `backend/package.json` (express transitive) | `path-to-regexp` DoS + `body-parser` DoS CVEs |
 | SEC-07 | High | ✅ Fixed | `backend/controllers/authController.js:13` | No password policy |
-| SEC-24 | High | ⬜ Open | `frontend/package.json` (react-router-dom) | Open-redirect CVEs, ships in the production bundle |
+| SEC-24 | High | ✅ Not reproduced | `frontend/package.json` (react-router-dom) | Open-redirect CVEs, ships in the production bundle |
+| SEC-31 | High | ✅ Fixed | `.github/workflows/ci.yml` (root `package.json` `workspaces` field) | `npm install`/`npm ci` run inside `frontend/` or `backend/` silently resolves against the root workspace instead, corrupting the wrong lockfile |
 | SEC-08 | Medium | ✅ Fixed | `frontend/package.json:58` | Dead `mongodb` dependency (the credential-leak file is already gone) |
 | SEC-09 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:40` | Client filename interpolated into S3 key |
 | SEC-10 | Medium | ✅ Fixed | `backend/controllers/authController.js:30` | Account enumeration on register |
@@ -61,8 +61,8 @@ and Phase 3 (admin-panel readiness) remain.
 | SEC-16 | Medium | ✅ Fixed | `backend/package.json`; `frontend/package.json` | EOL dependencies (aws-sdk v2, multer 1.x, `crypto` placeholder); dual lockfiles |
 | SEC-17 | Medium | ✅ Fixed | `landing/index.html:64`; `Landing.tsx:16,127`; `README.md` | Marketing copy claims E2EE the app doesn't implement |
 | SEC-18 | Medium | ✅ Resolved | `backend/models/User.js:78` | bcrypt cost factor 10 |
-| SEC-19 | Medium | ⬜ Open | (absent) | No account deletion capability |
-| SEC-28 | Medium | ⬜ Open | `frontend/package.json` (dev toolchain) | 20 frontend audit findings; vite dev-server CVEs are the actionable ones |
+| SEC-19 | Medium | ✅ Fixed | `backend/services/accountDeletion.js` | No account deletion capability |
+| SEC-28 | Medium | 🟨 Partial | `frontend/package.json` (dev toolchain) | Frontend audit findings; vite dev-server CVEs are the actionable ones |
 | SEC-20 | Low | ✅ Fixed | `profileController.js` vs `videoRoutes.js` | Inconsistent input length limits |
 | SEC-21 | Low | ✅ Fixed | `backend/routes/videoRoutes.js:49-54` | `entryNumber` race on concurrent uploads |
 | SEC-22 | Low | ✅ Fixed | `backend/routes/videoRoutes.js:61` | Unvalidated `JSON.parse(jwk)` → 500 |
@@ -80,6 +80,14 @@ and Phase 3 (admin-panel readiness) remain.
 - `mongoose.set('sanitizeFilter', true)` and `mongoose.set('strictQuery', true)` are now set globally (`backend/app.js`) as defence in depth behind the zod fix — see SEC-26 below for the caveat.
 - The CORS allowlist and the CSRF Origin allowlist are now the same env-driven, per-request-computed list (`backend/middleware/csrf.js`'s `getAllowedOrigins()`), set via `ALLOWED_ORIGINS` and excluding localhost whenever `NODE_ENV=production` — this is SEC-15's CORS half.
 - A production-only CSP `<meta>` tag is now baked into the built `frontend/index.html` by a small Vite plugin (`frontend/vite.config.ts`'s `injectProductionCSP`) — active today even on GitHub Pages, unlike a headers file. `frontend/vercel.json` additionally exists for the planned custom-domain host, carrying the same CSP plus headers a `<meta>` tag can't (`X-Frame-Options`, `Permissions-Policy`, HSTS) — inert until that migration, per the governing prompt's own framing of this item.
+
+**New in Groups G/H, not in the original audit:**
+- **Real age-gating.** `dateOfBirth` was previously only checked against the future, never against a minimum age — three separate client-side forms (`Register.tsx`, `ProfileSettings.tsx`, `ProfileSetup.tsx`) each had their own copy-pasted, inconsistent, imprecise (`today.getFullYear() - birthDate.getFullYear()`, no month/day awareness) `age < 13` check, and the **server enforced no minimum age at all**. Raised to the repo owner and confirmed: minimum age is 8, enforced server-side (`backend/services/agePolicy.js`, wired into `register` and `updateProfile`) as the actual control, with the same month/day-aware logic duplicated client-side (`frontend/src/lib/agePolicy.ts`) purely for UX (instant feedback before a round trip). `profile.location` is kept as-is — confirmed with the repo owner it's reserved for a planned feature (user-controlled location services surfaced in the recording UI), not dead schema. When that feature is built, it needs its own privacy review (continuous location is more sensitive than a one-time profile field) — noted here so it isn't missed.
+- **Account deletion** (closes SEC-19): `DELETE /api/auth/account`, gated behind re-authentication (current password for local accounts, a fresh Google credential checked against the account's `googleId` for Google accounts) plus a dedicated per-account rate limiter. Backed by an idempotent cascade-delete service (`backend/services/accountDeletion.js`) that removes the user's videos, S3 objects, refresh tokens, action tokens, and per-user counter before deleting the `User` document itself — continues past an individual S3 delete failure (reports `failedS3Keys`) rather than aborting the whole deletion. Minimal frontend entry point in `ProfileSettings.tsx`'s new "Danger zone" (`DeleteAccountSection.tsx`).
+- **Security event logging**: `backend/services/securityLog.js` writes one structured JSON line per event (`login_success`, `login_failure`, `password_change`, `google_link_success`, `google_link_blocked_unverified`, `refresh_token_reuse`, `account_deleted`) to stdout, redacting passwords/tokens/jwk/iv and masking emails (`j***@example.com`) rather than logging them in full. Deliberately not persisted to a database yet — it's the substrate Phase 3's `AuditLog` model is meant to build on (§6.2), not a replacement for it.
+- **Dependency currency** (SEC-16's follow-through): backend is now at **0 `npm audit` findings** (was 3 — jws/jsonwebtoken, mongoose, source-map-js, all closing SEC-25/26/27). Frontend dropped from 33 to **25**, all now confined to a single, named, deferred migration (see SEC-28) — none reach the shipped bundle. `vite` was bumped across three majors (5→8, the "real version jump" the original SEC-28 finding called for) with the dev server, both build modes, lint, typecheck, unit tests, and the Playwright e2e smoke test all re-verified after.
+- **CI workflow** (`.github/workflows/ci.yml`) now runs frontend lint/typecheck/tests/build, backend tests, the Playwright e2e smoke test, `npm audit --audit-level=high` (hard gate on backend, informational on frontend pending the SEC-28 migration), and CodeQL, alongside the existing gitleaks scan. `.github/dependabot.yml` covers all three npm "ecosystems" (root, `frontend/`, `backend/`) plus GitHub Actions itself.
+- **SEC-31 (new, found while doing the Group H dependency work):** see its own entry below — a real install-tooling footgun, not a code vulnerability, but one that actively corrupted a lockfile during this very session and needed a documented, enforced workaround.
 
 ---
 
@@ -129,7 +137,7 @@ and Phase 3 (admin-panel readiness) remain.
 **Changes user-visible behaviour?** No — only rejects malformed/malicious input.
 
 ### SEC-26 — Mongoose CVEs: sanitizeFilter bypass + prototype pollution *(new)*
-**Status: Partial (Group E).** `mongoose.set('sanitizeFilter', true)` and `mongoose.set('strictQuery', true)` are now set globally (`backend/app.js`) as defence in depth. The vulnerable `$nor`-in-`sanitizeFilter` CVE itself is still live at the installed version (`npm audit fix` to 8.24.4, inside the existing `^8.13.2` range, is Group H's job — a dependency bump, not a code change) — but SEC-06's actual fix doesn't depend on `sanitizeFilter` at all, since zod now rejects non-string `email` values before any filter is built, so this bug has no live exploit path through this app regardless of when the bump lands.
+**Status: Fixed (Group H).** `npm audit fix` (correctly scoped — see SEC-31) bumped `mongoose` to 8.24.4+, inside the already-declared `^8.13.2` range. `backend`'s full `npm audit` now reports 0 findings. `mongoose.set('sanitizeFilter', true)`/`strictQuery(true)` (Group E) remain as defence in depth regardless.
 
 **Location:** `backend/package.json` (`mongoose@8.13.2`)
 
@@ -161,6 +169,8 @@ Related: `LogoutTimer`'s idle "auto-lock" (`useLogoutTimer` → `logout()`) is a
 **Changes user-visible behaviour?** Yes — this is the big one: cookie sessions, working logout, "log out everywhere."
 
 ### SEC-25 — `jws` HMAC-verification CVE under the session-token library *(new)*
+**Status: Fixed (Group H).** `npm audit fix` bumped `jsonwebtoken` to 9.0.3 (inside the declared `^9.0.2` range).
+
 **Location:** `backend/package.json` (`jsonwebtoken@9.0.2`)
 
 [GHSA-869p-cjfg-cm3x](https://github.com/advisories/GHSA-869p-cjfg-cm3x) (High) — `jws` improperly verifies HMAC signatures, versions <3.2.3. Verified via `npm ls jws`: the vulnerable `jws@3.2.2` is pulled in by **`jsonwebtoken`** — the library that signs and verifies every session token in this app — not by `google-auth-library`, whose own nested `jws@4.0.1` is already clean. This sits directly under the primary auth boundary, not a side path.
@@ -194,6 +204,8 @@ No rate limiting anywhere: login, register, Google auth, upload. No `app.set('tr
 **Changes user-visible behaviour?** Yes, for anyone who legitimately hits a limit (expected).
 
 ### SEC-27 — `path-to-regexp` + `body-parser` DoS CVEs (express transitive) *(new)*
+**Status: Fixed (Group H).** `npm audit fix` resolved these within the declared `^5.1.0` range.
+
 **Location:** `backend/package.json` (`express@5.1.0`)
 
 - [GHSA-j3q9-mxjg-w52f](https://github.com/advisories/GHSA-j3q9-mxjg-w52f) (High) — `path-to-regexp` DoS via sequential optional groups.
@@ -217,6 +229,8 @@ The only check on registration is presence (`!password`) — a one-character pas
 **Changes user-visible behaviour?** Yes — stricter passwords required going forward.
 
 ### SEC-24 — React Router open-redirect CVEs, ships in the production bundle *(new)*
+**Status: Not reproduced (re-checked in Group H).** `npm audit` against the current frontend tree no longer lists any of these four advisories against the installed `react-router-dom@6.27.0` — re-verified directly (`npm ls react-router-dom` → `6.27.0`, unchanged; `npm audit` output has no `react-router-dom` entry at all). Either the advisory database's vulnerable-range data was corrected since the original Phase 1 draft, or the original range read was imprecise. Documented rather than silently dropped, since the original finding claimed a confirmed production-bundle exposure.
+
 **Location:** `frontend/package.json` (`react-router-dom@6.27.0`)
 
 Confirmed — not assumed — to ship in the actual production bundle: `docs/assets/*.js` contains its code, and it is a direct runtime dependency, not a dev-tool transitive. Four advisories apply to the installed `6.27.0` / `@remix-run/router@1.20.0`:
@@ -230,6 +244,19 @@ All are variants of unexpected/open redirect via untrusted or protocol-relative 
 **Fix plan:** `npm audit fix` resolves within the declared `^6.26.2` range (6.30.6+) — a lockfile refresh, not a v7 migration.
 
 **Changes user-visible behaviour?** No.
+
+### SEC-31 — `npm install`/`npm ci` run inside `frontend/` or `backend/` silently resolves against the root workspace instead *(new — found doing the Group H dependency work)*
+**Status: Fixed (Group H) — documented and worked around; the root cause (the `workspaces` field) is left in place, see below.**
+
+**Location:** root `package.json`'s `"workspaces": ["frontend", "backend"]`, combined with `frontend/` and `backend/` each also keeping their own independent `package-lock.json` (SEC-16's "one lockfile per package").
+
+**What happened:** running the ordinary, expected commands — `cd backend && npm audit fix`, `cd frontend && npm install` — did not operate on that directory's own lockfile. npm detected the ancestor `workspaces` field and transparently re-anchored the install at the repo root instead. Concretely, during this pass: a plain `cd frontend && npm install` **deleted `frontend/package-lock.json` outright** and rewrote the root `package-lock.json` to absorb its ~400 packages; `cd backend && npm audit fix` updated `backend/node_modules` without touching `backend/package-lock.json` at all, leaving the two silently out of sync; a later root-level `cd .. && npm install` (intended only to install the root's own two devDependencies, `husky` and `@playwright/test`) rewrote **both** member lockfiles again with an 8,000+ line diff despite being run from outside either directory. All of this happened using nothing but the commands a contributor (human or AI) would normally reach for — none of it required `--force`, `--legacy-peer-deps`, or any other "I know what I'm doing" flag.
+
+**Exploit scenario — this is a supply-chain-integrity finding, not a classic request-path vulnerability:** a future contributor (or CI run) doing routine dependency maintenance — `npm audit fix`, adding a package — can unknowingly produce a `backend/package-lock.json` or `frontend/package-lock.json` that no longer matches what's actually in `node_modules`, or lose the member lockfile entirely. If that drifted/corrupted lockfile gets committed, a deploy that does `npm ci` against it (Render, most likely, for `backend/`) either installs a different dependency tree than what was tested, or fails outright. This is exactly the kind of silent, hard-to-notice divergence that supply-chain integrity controls (reproducible lockfiles, `npm ci` in deploy pipelines) exist to prevent — and it was reintroducing itself via totally ordinary commands.
+
+**Fix plan:** Every `npm install`/`npm ci`/`npm audit fix` invocation inside `frontend/` or `backend/` (locally or in CI) must pass `--workspaces=false --include-workspace-root=false` to force npm to treat that directory as its own project. `.github/workflows/ci.yml`'s install steps all do this now. **Not fixed as a repo-structure change:** removing the root `workspaces` field entirely would eliminate the footgun at the source, but that's a structural decision about how the repo is organized, not purely a security fix — raised to the repo owner rather than made unilaterally. Until/unless that happens, **any future `npm install`-family command run inside `frontend/` or `backend/` needs the same two flags**, and this note should stay somewhere a future contributor will actually see it (also added to `SECURITY.md`).
+
+**Changes user-visible behaviour?** No — install-tooling/CI only.
 
 ---
 
@@ -355,28 +382,25 @@ CORS allowlist includes `http://localhost:8080` and `http://localhost:3000` unco
 **Changes user-visible behaviour?** No.
 
 ### SEC-19 — No account deletion capability
-**Location:** absent — no route, no controller, no cascade-delete path
+**Status: Fixed (Group G).** `DELETE /api/auth/account` (`backend/routes/authRoutes.js`/`authController.js`'s `deleteAccount`), gated behind re-authentication — current password for local accounts, a fresh Google credential checked against the account's `googleId` for Google accounts — plus a dedicated per-account rate limiter (`deleteAccountLimiter`, `backend/middleware/rateLimit.js`). The actual cascade-delete logic lives in `backend/services/accountDeletion.js`'s `deleteUserAccount(userId)`: removes the user's videos (DB + S3 objects, continuing past an individual S3 failure and reporting `failedS3Keys` rather than aborting), refresh tokens, action tokens, the per-user entry counter, then the `User` document itself. Idempotent by construction — a second call against an already-deleted user is a harmless no-op, which matters because Phase 3's admin deletion is meant to call this exact function rather than duplicating the logic (§6.5). Minimal frontend entry point: a "Danger zone" section in `ProfileSettings.tsx` (`frontend/src/components/DeleteAccountSection.tsx`). Tested in `backend/tests/accountDeletion.test.js` — happy path, idempotency, a mocked S3 failure mid-deletion, wrong-password/mismatched-Google-credential rejection, and session cookies actually clearing afterward.
 
-There is no way for a user to delete their account and have their S3 objects and database records removed.
+**Data minimisation, raised rather than decided unilaterally (per the governing prompt):** asked the repo owner about `dateOfBirth` and `profile.location`, both flagged in the original draft. Decision: **`dateOfBirth` stays, and now actually enforces a real minimum age** (8 years — see the new age-gating note above; previously collected but never enforced beyond a future-date check). **`profile.location` stays** — confirmed it's reserved for a planned feature (user-togglable location services shown in the recording UI), not dead schema as the original draft assumed. Flagged for whoever builds that feature: continuous/real location is more privacy-sensitive than a one-time profile field and will want its own review at that point.
 
-Related observation from checking the `User` schema for other privacy angles: `profile.location` is a schema field with **zero references anywhere** in controllers or frontend forms — it collects nothing today, but it's a latent footgun (a field waiting for someone to wire a form to it without a privacy review). `dateOfBirth` **is** actively required at registration but is only ever used for a future-date sanity check, never for real age-gating — worth a product-level question (does a video-journal app need DOB at all?) rather than a numbered defect on its own.
+**Location:** `backend/services/accountDeletion.js`; `backend/controllers/authController.js`'s `deleteAccount`
 
-**Fix plan:** Build account deletion as a reusable cascade-delete service (also needed by the future admin panel). Raise `profile.location` for removal or an explicit product decision rather than leaving it dormant.
-
-**Changes user-visible behaviour?** Yes — new deletion capability is user-visible by definition.
+**Changes user-visible behaviour?** Yes — new deletion capability is user-visible by definition. Also: registration and profile updates now enforce a minimum age of 8 (previously unenforced).
 
 ### SEC-28 — Frontend dependency audit: dev-toolchain surface, with two actionable dev-server CVEs *(new)*
+**Status: Partial (Group H).** Current `npm audit` (re-run against the actual installed tree, correctly scoped — see SEC-31): **25 findings (2 low, 4 moderate, 19 high)**, down from the 33 this finding originally quoted. Confirmed again: all 25 are devDependencies, absent from the built `docs/assets/*.js` bundle.
+
+What changed:
+- **`vite` bumped 5.4.19 → 8.3.4** — the real version jump this finding called for, closing both named dev-server CVEs ([GHSA-g4jq-h2w9-997c](https://github.com/advisories/GHSA-g4jq-h2w9-997c) and friends, [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) via vite's bundled esbuild). `@vitejs/plugin-react-swc` bumped 3.11.0 → 4.3.3 alongside it (peer requirement). Re-verified after: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build:prod`, `npm run build:dev`, a manual dev-server smoke check, and the Playwright e2e smoke test all pass.
+- **Seven standalone transitive packages pinned via `overrides`** in `frontend/package.json` to patched, same-major versions with a single, unambiguous resolved instance each: `rollup` 4.64.5, `yaml` 2.9.1, `flatted` 3.4.4, `browserslist` 4.29.3, `source-map-js` 1.2.2, `js-yaml` 4.3.2, `glob` 10.5.0. (One CVE against `js-yaml` — quadratic CPU consumption in `!!omap` resolution — has **no backport to the 4.x line**, only 5.x; left on 4.3.2 rather than forcing a major bump of eslint's own YAML-parsing dependency, since this app never parses untrusted YAML through it — accepted as a low-severity residual, noted here rather than silently dropped.)
+- **What's left, deferred as one bucket:** `braces` (the actual CVE root — [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), stack-exhaustion DoS, **no fix available at all** in the 3.x line) is a transitive of `tailwindcss@3`'s `chokidar` dependency. The *only* way to shed it is a Tailwind v4 migration — new engine, new config format, breaking changes across every styled component. Raised to the repo owner; **deferred by explicit decision** given the cost (a framework migration touching the whole UI) versus the realistic exposure (a dev/build-time file-watcher glob, never reachable by anything the shipped app does). `micromatch`, `fast-glob`, the `@typescript-eslint/*` chain, and the `postcss-selector-parser`/`@tailwindcss/typography` pair are all entangled in the same blocked subtree and deferred alongside it for the same reason — forcing any of them independently either doesn't resolve (same root cause) or requires the same migration.
+
 **Location:** `frontend/package.json` (dev/build toolchain)
 
-`npm audit` reports 20 frontend vulnerabilities (13 high, 4 moderate, 3 low). After tracing each dependency chain, all except SEC-24 (react-router-dom, broken out above) resolve only under **devDependencies** — vite's own toolchain, eslint, tailwindcss, autoprefixer — and are confirmed **absent** from the built `docs/assets/*.js` bundle. This is a build-time supply-chain surface, not a runtime one.
-
-Two are worth naming specifically since they affect the local dev server every contributor runs, and this repo's own Playwright e2e test runner:
-- `vite@5.4.19` (the version actually used by `vite.config.ts` / `npm run dev`) is inside the vulnerable range for 6 separate advisories — dev-server request-handling issues such as [GHSA-g4jq-h2w9-997c](https://github.com/advisories/GHSA-g4jq-h2w9-997c) and [GHSA-4w7w-66w2-5vf9](https://github.com/advisories/GHSA-4w7w-66w2-5vf9) — a malicious website can potentially make a victim's browser hit their own locally-running dev server and read files it shouldn't.
-- `esbuild@0.21.5` (vite's *own* transitive esbuild — distinct from the direct 0.25.0 dependency noted in SEC-16) carries [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) — any website can send requests to the dev server and read the response.
-
-The rest (lodash, minimatch, js-yaml, rollup, picomatch, ajv, browserslist, glob, flatted, brace-expansion, @humanfs/node, @eslint/plugin-kit, postcss-selector-parser) are lower-urgency CI-gating hygiene — the Phase 2 CI workflow's planned `npm audit --audit-level=high` step will fail on these and need addressing then.
-
-**Fix plan:** Bump `vite` to a current 6.x/7.x release (a real version jump — verify the dev server and build still work, not a drop-in lockfile refresh like the others), then re-run `npm audit fix` for the rest.
+**Fix plan (remaining):** Tailwind v4 migration, if/when undertaken — re-run `npm audit` after to confirm the whole `braces`-rooted subtree clears in one pass.
 
 **Changes user-visible behaviour?** No — dev/build-only.
 
@@ -474,4 +498,6 @@ Re-confirmed all of the following still hold in the current tree — lock these 
 
 ## Next step
 
-Phase 2 Groups A-F are landed (A: secrets/repo hygiene, B: cryptography honesty, C: upload/storage, D: auth/sessions, E: input validation/API hygiene, F: HTTP/frontend hardening). Remaining: Group G (account deletion, data minimisation, security-event logging), Group H (dependency bumps — SEC-24/25/26/27/28 are all `npm audit fix`-shaped and still open — plus the CI workflow), and Phase 3 (admin-panel readiness).
+Phase 2 Groups A-H are all landed (A: secrets/repo hygiene, B: cryptography honesty, C: upload/storage, D: auth/sessions, E: input validation/API hygiene, F: HTTP/frontend hardening, G: account deletion/data minimisation/security logging, H: dependency currency/CI). Only Phase 3 (admin-panel readiness) remains — `role` on `User`, the `AuditLog` model, `requireAdmin` middleware, extracting `videoRoutes.js`'s inline logic into a controller/service layer, the first-admin bootstrap script, and the key-material invariant test.
+
+One open item carried forward rather than closed: SEC-28's Tailwind v3→v4 migration (the only remaining path to the `braces` CVE at the root of 25 frontend dev-toolchain findings) — deferred by explicit decision, dev/build-only exposure, re-raise if that calculus changes.

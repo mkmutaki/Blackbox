@@ -71,6 +71,16 @@ const presignAccountLimiter = makeAccountLimiter({
   keyFn: userIdKey,
 });
 
+// Account deletion is already behind authMiddleware + a re-auth check
+// (password or a fresh Google credential), but that re-auth check is
+// itself guessable (a password) — limit attempts the same way login does.
+const deleteAccountLimiter = makeAccountLimiter({
+  windowMs: FIFTEEN_MIN,
+  max: 5,
+  message: 'Too many attempts, please try again later.',
+  keyFn: userIdKey,
+});
+
 module.exports = {
   makeIpLimiter,
   makeAccountLimiter,
@@ -78,4 +88,5 @@ module.exports = {
   authAccountLimiter,
   presignIpLimiter,
   presignAccountLimiter,
+  deleteAccountLimiter,
 };

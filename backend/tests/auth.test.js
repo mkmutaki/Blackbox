@@ -72,6 +72,26 @@ describe('POST /api/auth/register', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects a date of birth under the minimum age (SEC-19 data minimisation follow-up)', async () => {
+    const sevenYearsAgo = new Date();
+    sevenYearsAgo.setFullYear(sevenYearsAgo.getFullYear() - 7);
+
+    const agent = createAgent();
+    const res = await agent.post('/api/auth/register').send({
+      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X',
+      dateOfBirth: sevenYearsAgo.toISOString().slice(0, 10),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a date of birth exactly at the minimum age', async () => {
+    const exactlyEight = new Date();
+    exactlyEight.setFullYear(exactlyEight.getFullYear() - 8);
+
+    const { res } = await registerUser({ dateOfBirth: exactlyEight.toISOString().slice(0, 10) });
+    expect(res.status).toBe(201);
+  });
+
   it('rejects a password found in the HIBP breach list', async () => {
     hibpService.isPasswordBreached.mockResolvedValueOnce(true);
 

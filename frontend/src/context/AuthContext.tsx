@@ -33,6 +33,7 @@ type AuthContextType = {
   logout: () => Promise<void>;
   updateProfile: (profileData: { username?: string; dateOfBirth: string }) => Promise<void>;
   completeOnboarding: (answers: OnboardingAnswers) => Promise<void>;
+  deleteAccount: (proof: { password?: string; credential?: string }) => Promise<void>;
   error: string | null;
 };
 
@@ -194,6 +195,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Permanently delete the caller's own account. Re-throws on failure
+  // (wrong password, mismatched Google credential, etc.) so the
+  // confirmation UI can show the server's specific error rather than this
+  // context's shared `error` banner, which other forms also read from.
+  const deleteAccount = async (proof: { password?: string; credential?: string }) => {
+    await api.delete('/auth/account', { data: proof });
+    setUser(null);
+    setIsLoggedIn(false);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -206,6 +217,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         updateProfile,
         completeOnboarding,
+        deleteAccount,
         error
       }}
     >

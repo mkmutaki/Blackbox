@@ -44,6 +44,18 @@ describe('PUT /api/profile/update', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('rejects updating date of birth to under the minimum age', async () => {
+    const { agent } = await createUserAndAgent();
+    const sevenYearsAgo = new Date();
+    sevenYearsAgo.setFullYear(sevenYearsAgo.getFullYear() - 7);
+
+    const res = await agent.put('/api/profile/update').send({
+      dateOfBirth: sevenYearsAgo.toISOString().slice(0, 10),
+    });
+
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('POST /api/profile/onboarding', () => {
