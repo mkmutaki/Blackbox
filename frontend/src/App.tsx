@@ -1,7 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
@@ -24,52 +22,46 @@ import { AuthProvider } from "./context/AuthContext";
 import { RecordingProvider } from "./context/RecordingContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
-const queryClient = new QueryClient();
-
 const App = () => (
   <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RecordingProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter basename={import.meta.env.PROD ? '/Blackbox' : ''}>
-              <Header />
-              <Routes>
-                <Route path="/" element={<Landing />} />
+    <AuthProvider>
+      <RecordingProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter basename={import.meta.env.PROD ? '/Blackbox' : ''}>
+          <Header />
+          <Routes>
+            <Route path="/" element={<Landing />} />
 
-                {/* Protected routes */}
-                <Route
-                  path="/home"
-                  element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  }
-                />
+            {/* Protected routes */}
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              }
+            />
 
-                {/* Public routes */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/verify-email" element={<VerifyEmail />} />
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
 
-                {/* Catch-all route */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+            {/* Catch-all route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
 
-              {/* Auto-logout timer - only shows when user is authenticated */}
-              <LogoutTimer
-                timeoutMinutes={5}
-                showWarningAt={120} // 2 minutes warning
-              />
-            </BrowserRouter>
-          </TooltipProvider>
-        </RecordingProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+          {/* Auto-logout timer - only shows when user is authenticated */}
+          <LogoutTimer
+            timeoutMinutes={5}
+            showWarningAt={120} // 2 minutes warning
+          />
+        </BrowserRouter>
+      </RecordingProvider>
+    </AuthProvider>
   </GoogleOAuthProvider>
 );
 
