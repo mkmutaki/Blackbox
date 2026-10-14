@@ -41,6 +41,16 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Settable only by a direct database operation or
+  // scripts/bootstrapAdmin.js — never through any HTTP route. Every route
+  // that writes a User builds its update from an explicit field allowlist,
+  // and toSafeUser (services/userView.js) never returns it.
+  // tests/role.test.js locks both in.
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  },
   profile: {
     // Immutable: captured once at sign-up and never editable afterwards.
     fullName: {

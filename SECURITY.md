@@ -138,10 +138,14 @@ Even with the above accepted risk, client-side encryption still means:
   password; Google accounts sign in with Google again, and the resulting
   credential's `sub` is checked against the account's stored `googleId`.
   The actual removal is `backend/services/accountDeletion.js`'s
-  `deleteUserAccount(userId)`: an idempotent cascade that deletes the
-  user's videos (database records and S3 objects — continuing past an
-  individual S3 failure rather than aborting), refresh tokens, action
-  tokens, the per-user entry counter, and finally the `User` document.
+  `deleteUserAccount(userId)`: an idempotent cascade that first bumps
+  `tokenVersion` (so every live session dies before anything is removed,
+  and a half-finished deletion leaves the account locked rather than
+  usable), then deletes the user's videos (database records and S3
+  objects — continuing past an individual S3 failure rather than aborting,
+  with any failed keys recorded in the `account_deleted` audit entry),
+  refresh tokens, action tokens, the per-user entry counter, and finally
+  the `User` document. Audit-log entries about the user are kept.
   Written as a standalone, reusable service specifically so a future admin
   deletion path calls the same function instead of a second copy of this
   logic.
@@ -154,16 +158,53 @@ Even with the above accepted risk, client-side encryption still means:
 
 ## Security event logging
 
-`backend/services/securityLog.js` writes one structured JSON line per
-security-relevant event to stdout: `login_success`, `login_failure`,
-`password_change`, `google_link_success`, `google_link_blocked_unverified`,
-`refresh_token_reuse`, `account_deleted`. Passwords, tokens, `jwk`, and `iv`
-are redacted outright; emails are masked (`j***@example.com`) rather than
+`backend/services/securityLog.js` records every security-relevant event
+twice: one structured JSON line to stdout, and one document in the
+append-only `AuditLog` collection (`backend/models/AuditLog.js`). Events:
+`login_success`, `login_failure`, `password_change`, `google_link_success`,
+`google_link_blocked_unverified`, `refresh_token_reuse`, `account_deleted`,
+`admin_bootstrap`. Each carries `actor` (who did it — null when nobody
+authenticated did), `targetType`/`targetId` (what it was done to), `ip`,
+and `meta`. Passwords, tokens, `jwk`, and `iv` are redacted outright, at
+any nesting depth; emails are masked (`j***@example.com`) rather than
 either logged in full or dropped, since knowing *which* account an event
-concerns is the point of a security log. This is deliberately not
-persisted to a database yet — it's the substrate a future admin-panel
-audit log is meant to build on (an append-only `AuditLog` model, planned),
-not a replacement for it.
+concerns is the point of a security log.
+
+`AuditLog` is append-only by enforcement, not convention: every Mongoose
+update and delete path on the model throws, and a test fails if any
+application file other than `securityLog.js` references the model. A
+failed audit write is reported to stderr but never fails the request that
+triggered it.
+
+**Open question — retention.** Audit entries (including client IPs) are
+currently kept indefinitely, and outlive a deleted account by design. A
+retention period should be decided before real users arrive; enforcing it
+will need a deliberate, documented exception to "append-only" (for
+example a MongoDB TTL index on `createdAt`).
+
+## Roles and the first admin
+
+`User.role` is `'user'` or `'admin'`, default `'user'`. No HTTP route can
+set it: every route that writes a user builds its update from an explicit
+field allowlist, and `role` is never included in any API response
+(`backend/tests/role.test.js`). `backend/middleware/requireAdmin.js` reads
+the role from the user `authMiddleware` loads on each request, never from
+the token, so demoting an admin takes effect on their next request. No
+routes use it yet.
+
+The first admin is created with a CLI script, never a UI or route:
+
+```bash
+cd backend
+npm run admin:bootstrap -- --email you@example.com           # dry run
+npm run admin:bootstrap -- --email you@example.com --write   # apply
+```
+
+It connects to whatever `MONGO_URI` in `backend/.env` points at, so check
+that first. It refuses if any admin already exists, if the account doesn't
+exist, or if its email isn't verified, and it writes an `admin_bootstrap`
+audit entry. Further admins are a direct database operation until the
+admin panel exists.
 
 ## Known limitation: email delivery is stubbed
 

@@ -34,7 +34,7 @@ than taken at face value. Findings SEC-24 through SEC-30 are new this pass.
 Status as of Group H (dependencies & CI) landing — Groups A-H are all now
 in. "Partial" means part of the finding is resolved and the rest is
 explicitly scoped to later work — see that finding's detail section for
-exactly what's left. Only Phase 3 (admin-panel readiness) remains.
+exactly what's left. Phase 3 (admin-panel readiness) has also landed — see the section at the end.
 
 | ID | Severity | Status | Location | Finding |
 |---|---|---|---|---|
@@ -496,8 +496,37 @@ Re-confirmed all of the following still hold in the current tree — lock these 
 
 ---
 
-## Next step
+## Phase 3 — Admin-panel readiness
 
-Phase 2 Groups A-H are all landed (A: secrets/repo hygiene, B: cryptography honesty, C: upload/storage, D: auth/sessions, E: input validation/API hygiene, F: HTTP/frontend hardening, G: account deletion/data minimisation/security logging, H: dependency currency/CI). Only Phase 3 (admin-panel readiness) remains — `role` on `User`, the `AuditLog` model, `requireAdmin` middleware, extracting `videoRoutes.js`'s inline logic into a controller/service layer, the first-admin bootstrap script, and the key-material invariant test.
+Foundations only: no admin routes and no admin UI exist. The constraint behind all of it: E2EE is deferred, so the server can decrypt any video, and "an admin never sees a user's recording" is enforced by code and tests, not cryptography.
 
-One open item carried forward rather than closed: SEC-28's Tailwind v3→v4 migration (the only remaining path to the `braces` CVE at the root of 25 frontend dev-toolchain findings) — deferred by explicit decision, dev/build-only exposure, re-raise if that calculus changes.
+| §6 item | Where | Tests |
+|---|---|---|
+| 1. `role` on `User` (`'user' \| 'admin'`, default `'user'`) | `backend/models/User.js` | `tests/role.test.js`: register, Google sign-up, profile update and onboarding can't set it, including via `$set` or nested shapes; it never appears in an auth or profile response |
+| 2. Append-only `AuditLog`, with the §5.G events wired through it | `backend/models/AuditLog.js`, `backend/services/securityLog.js` | `tests/auditLog.test.js`: every Mongoose update and delete path throws, only `securityLog.js` references the model, events persist with redacted meta, a failed write doesn't fail the request |
+| 3. `requireAdmin`, reading `role` from the resolved user | `backend/middleware/requireAdmin.js`; `authMiddleware.js` now loads `role` | `tests/requireAdmin.test.js`: unit cases, plus a throwaway app proving that a forged `role` claim in a valid token is ignored and that demotion applies on the next request |
+| 4. Video service layer | `backend/services/videoService.js`, `backend/controllers/videoController.js`; `routes/videoRoutes.js` is now wiring only | The existing `tests/video.test.js`, unchanged and passing |
+| 5. Cascade-delete service | `backend/services/accountDeletion.js` (from Group G). Now bumps `tokenVersion` before removing anything, and failed S3 keys are recorded in the `account_deleted` audit entry | `tests/accountDeletion.test.js`: adds a database failure mid-way (account locked, retry completes) and S3-failure keys landing in the audit log |
+| 6. First-admin bootstrap script | `backend/scripts/bootstrapAdmin.js` (`npm run admin:bootstrap`) | `tests/bootstrapAdmin.test.js`: dry run by default, only `--write` writes, refuses when an admin exists or the email is unverified, writes an audit entry. Tested only against the in-memory database; the CLI has not been run against any real database |
+| 7. Key-material invariant | `tests/keyMaterial.test.js` | Enumerates every mounted route from Express's own router, so a new route or router fails until it has a request recipe. It calls each route as an anonymous client, a stranger and the owner, captures every response at `res.send`, and asserts only the owner's `GET /api/videos(/:id)` contain `jwk`/`iv` (with a positive control) |
+
+Verified by mutation: removing the append-only hooks fails 13 tests; leaking `jwk` from the rename response, or adding an unlisted route, each fails the key-material suite.
+
+**Not verified this phase:** the Playwright e2e smoke test wasn't run, because ports 5100/8080 were occupied by a locally running dev backend that reads `backend/.env`. Reusing that server would have pointed the test at real data.
+
+**User-visible behaviour changes:** none. `role` isn't exposed, and the video refactor keeps every response identical.
+
+### What the admin panel still needs
+
+1. **Suspension.** There's no `status`/`suspendedAt` field yet. When added, `authMiddleware`, `refresh` and `login` must all reject a suspended user. `authMiddleware` already loads the user per request, so the check there is one condition.
+2. **Admin routes**, mounted as `authMiddleware, requireAdmin, …`. Each one needs a recipe in `tests/keyMaterial.test.js`, and the test fails until it has one.
+3. **Admin-safe views.** `videoService.toOwnerVideoView` is owner-only. An admin listing needs its own view with no `jwk`, `iv` or signed URL. Also decide how much of `profile` (date of birth, location) an admin should see; `toSafeUser` returns all of it today.
+4. **Audit attribution.** Every admin action must call `logSecurityEvent` with `actor` set to the admin and `targetId` set to the user, e.g. admin deletion is `deleteUserAccount(userId)` followed by an `account_deleted` event with the admin as actor.
+5. **Audit read path.** Add a paginated query function next to `logSecurityEvent`, and add that file to the allowlist in `auditLog.test.js`.
+6. **Telling the frontend who is an admin.** `role` is deliberately absent from `/auth/me`. Prefer a dedicated `GET /api/admin/session` behind `requireAdmin` over adding `role` to `toSafeUser`.
+7. **Step-up auth and MFA for admins.** An admin can delete any account. Destructive admin actions should re-authenticate, like self-deletion does, and admin accounts should have MFA.
+8. **Role management.** Decide whether promotion and demotion get a route (guarding against removing the last admin) or stay a direct database operation.
+9. **Orphan cleanup.** S3 keys that failed to delete are recorded in the audit log, but nothing retries them yet. A job can reuse `videoService.deleteVideoObject`.
+10. **Audit retention.** Entries, including IPs, are kept indefinitely. See SECURITY.md.
+
+One open item carried forward rather than closed: SEC-28's Tailwind v3→v4 migration (the only remaining path to the `braces` CVE at the root of 25 frontend dev-toolchain findings), deferred by explicit decision. It's dev/build-only exposure; re-raise it if that changes.

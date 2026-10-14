@@ -17,13 +17,16 @@ const authMiddleware = async (req, res, next) => {
     // tokenVersion) invalidates this access token immediately instead of
     // waiting up to its own 15-minute lifetime. Also means a deleted user's
     // old token stops working the moment the account is gone, not later.
-    const user = await User.findById(decoded.userId).select('tokenVersion');
+    const user = await User.findById(decoded.userId).select('tokenVersion role');
 
     if (!user || user.tokenVersion !== decoded.tokenVersion) {
       return res.status(401).json({ error: 'Token is not valid' });
     }
 
-    req.user = { userId: decoded.userId, tokenVersion: decoded.tokenVersion };
+    // role comes from the database row just loaded, never from a token
+    // claim — requireAdmin relies on that, so a role change (or a forged
+    // `role` claim) can't outlive or outrank what the database says.
+    req.user = { userId: decoded.userId, tokenVersion: decoded.tokenVersion, role: user.role };
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Token is not valid' });

@@ -7,6 +7,7 @@ const s3 = require('../services/s3Client');
 const Video = require('../models/Video');
 const RefreshToken = require('../models/RefreshToken');
 const Counter = require('../models/Counter');
+const AuditLog = require('../models/AuditLog');
 const googleAuthService = require('../services/googleAuth');
 
 const DEFAULT_IV = 'aabbccddeeff00112233445566778899';
@@ -76,6 +77,24 @@ describe('deleteUserAccount (cascade-delete service)', () => {
 
     spy.mockRestore();
   });
+
+  it('locks every session first, so a database failure mid-way leaves the account unusable until a retry finishes it', async () => {
+    const { agent, user } = await createUserAndAgent();
+    await uploadVideo(agent);
+
+    const spy = vi.spyOn(User, 'findByIdAndDelete').mockRejectedValueOnce(new Error('connection reset'));
+    await expect(deleteUserAccount(user.id)).rejects.toThrow('connection reset');
+    spy.mockRestore();
+
+    // Half-deleted: the user row survived, but the session that was live a
+    // moment ago no longer authenticates.
+    expect(await User.findById(user.id)).not.toBeNull();
+    expect((await agent.get('/api/auth/me')).status).toBe(401);
+
+    const retry = await deleteUserAccount(user.id);
+    expect(retry.failedS3Keys).toEqual([]);
+    expect(await User.findById(user.id)).toBeNull();
+  });
 });
 
 describe('DELETE /api/auth/account (local accounts)', () => {
@@ -104,6 +123,23 @@ describe('DELETE /api/auth/account (local accounts)', () => {
     // The session cookies are cleared — a follow-up request is unauthenticated.
     const me = await agent.get('/api/auth/me');
     expect(me.status).toBe(401);
+  });
+
+  it('records S3 keys that failed to delete in the audit log, so the orphan stays traceable', async () => {
+    const { agent, password, user } = await createUserAndAgent();
+    await uploadVideo(agent);
+    const [video] = await Video.find({ ownerId: user.id });
+
+    const s3Spy = vi.spyOn(s3, 'deleteObject').mockRejectedValueOnce(new Error('S3 unavailable'));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = await agent.delete('/api/auth/account').send({ password });
+    s3Spy.mockRestore();
+    errorSpy.mockRestore();
+
+    expect(res.status).toBe(200);
+    const entry = await AuditLog.findOne({ action: 'account_deleted' }).lean();
+    expect(entry.meta.failedS3Keys).toEqual([video.s3Key]);
   });
 
   it('requires authentication', async () => {

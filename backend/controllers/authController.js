@@ -128,19 +128,19 @@ const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      logSecurityEvent('login_failure', { ip: req.ip, meta: { email, reason: 'unknown_email' } });
+      await logSecurityEvent('login_failure', { ip: req.ip, meta: { email, reason: 'unknown_email' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      logSecurityEvent('login_failure', { userId: user._id, ip: req.ip, meta: { email, reason: 'wrong_password' } });
+      await logSecurityEvent('login_failure', { targetType: 'user', targetId: user._id, ip: req.ip, meta: { email, reason: 'wrong_password' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     await issueNewSession(res, user);
-    logSecurityEvent('login_success', { userId: user._id, ip: req.ip, meta: { email } });
+    await logSecurityEvent('login_success', { actor: user._id, targetType: 'user', targetId: user._id, ip: req.ip, meta: { email } });
 
     res.json({ user: publicUser(user) });
   } catch (error) {
@@ -189,8 +189,9 @@ const googleAuth = async (req, res) => {
         // trying to sign into right now. Make them prove ownership the
         // normal way (password sign-in, or reset it) instead.
         if (!existingLocal.emailVerified) {
-          logSecurityEvent('google_link_blocked_unverified', {
-            userId: existingLocal._id,
+          await logSecurityEvent('google_link_blocked_unverified', {
+            targetType: 'user',
+            targetId: existingLocal._id,
             ip: req.ip,
             meta: { email },
           });
@@ -202,7 +203,7 @@ const googleAuth = async (req, res) => {
         existingLocal.googleId = googleId;
         await existingLocal.save();
         user = existingLocal;
-        logSecurityEvent('google_link_success', { userId: user._id, ip: req.ip, meta: { email } });
+        await logSecurityEvent('google_link_success', { actor: user._id, targetType: 'user', targetId: user._id, ip: req.ip, meta: { email } });
       } else {
         const googleName = name || email.split('@')[0];
         user = new User({
@@ -278,7 +279,7 @@ const refresh = async (req, res) => {
       // live access token from this chain stops working immediately.
       await RefreshToken.updateMany({ familyId: existing.familyId }, { $set: { revokedAt: new Date() } });
       await User.findByIdAndUpdate(existing.userId, { $inc: { tokenVersion: 1 } });
-      logSecurityEvent('refresh_token_reuse', { userId: existing.userId, ip: req.ip, meta: { familyId: existing.familyId } });
+      await logSecurityEvent('refresh_token_reuse', { targetType: 'user', targetId: existing.userId, ip: req.ip, meta: { familyId: existing.familyId } });
       clearAuthCookies(res);
       return res.status(401).json({ error: 'Session invalid — please sign in again' });
     }
@@ -409,7 +410,7 @@ const resetPassword = async (req, res) => {
     // don't leave any other device's session alive.
     await RefreshToken.updateMany({ userId: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
 
-    logSecurityEvent('password_change', { userId: user._id, ip: req.ip, meta: { email: user.email } });
+    await logSecurityEvent('password_change', { actor: user._id, targetType: 'user', targetId: user._id, ip: req.ip, meta: { email: user.email } });
 
     res.json({ message: 'Password reset successfully. Please sign in again.' });
   } catch (error) {
@@ -480,10 +481,18 @@ const deleteAccount = async (req, res) => {
     const result = await deleteUserAccount(user._id);
 
     clearAuthCookies(res);
-    logSecurityEvent('account_deleted', {
-      userId: user._id,
+    // failedS3Keys lands in the audit log so an orphaned object stays
+    // traceable for cleanup after its Video record is gone.
+    await logSecurityEvent('account_deleted', {
+      actor: user._id,
+      targetType: 'user',
+      targetId: user._id,
       ip: req.ip,
-      meta: { email: user.email, deletedVideoCount: result.deletedVideoCount },
+      meta: {
+        email: user.email,
+        deletedVideoCount: result.deletedVideoCount,
+        failedS3Keys: result.failedS3Keys,
+      },
     });
 
     res.json({ message: 'Account deleted' });

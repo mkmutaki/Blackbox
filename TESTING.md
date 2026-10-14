@@ -49,6 +49,13 @@ npm test                # all three, in order
   get, update, onboarding; video upload, list, get-by-id, rename, delete; and
   an explicit IDOR check that user B gets 404s (not the data) on every verb
   against user A's video.
+- Admin-panel readiness (Phase 3): `role.test.js` (no HTTP route can set
+  `role`), `requireAdmin.test.js` (role read from the database, not the
+  token), `auditLog.test.js` (append-only enforcement, events persisted and
+  redacted), `bootstrapAdmin.test.js` (dry-run default, first-admin only),
+  and `keyMaterial.test.js`, which enumerates every mounted route from
+  Express itself and fails if a new route has no request recipe there — when
+  you add a route, add its recipe.
 
 Run just this suite:
 

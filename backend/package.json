@@ -6,7 +6,8 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node server.js"
+    "start": "node server.js",
+    "admin:bootstrap": "node scripts/bootstrapAdmin.js"
   },
   "keywords": [],
   "author": "",
