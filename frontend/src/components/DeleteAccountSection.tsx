@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -22,19 +23,26 @@ import { getErrorMessage } from '@/lib/errorMessage';
 // destructive and irreversible. Local accounts re-enter their password;
 // Google accounts sign in with Google again and we check the resulting
 // credential matches the account being deleted (enforced server-side).
+// Typing the username back first is only a guard against accidental
+// deletion, not authentication — the username is shown right above the box.
 export function DeleteAccountSection() {
   const { user, deleteAccount } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [password, setPassword] = useState('');
+  const [typedUsername, setTypedUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isGoogleAccount = user?.authProvider === 'google';
+  // Accounts that predate onboarding may have no username; fall back to email.
+  const confirmationText = user?.profile?.username || user?.email || '';
+  const usernameConfirmed = typedUsername.trim() === confirmationText;
 
   const resetAndClose = () => {
     setIsOpen(false);
     setPassword('');
+    setTypedUsername('');
     setError(null);
   };
 
@@ -47,6 +55,10 @@ export function DeleteAccountSection() {
   };
 
   const handlePasswordConfirm = async () => {
+    if (!usernameConfirmed) {
+      setError('Type your username exactly as shown to confirm.');
+      return;
+    }
     if (!password) {
       setError('Enter your password to confirm.');
       return;
@@ -103,7 +115,9 @@ export function DeleteAccountSection() {
             <DialogTitle className="font-mono">Delete your account?</DialogTitle>
             <DialogDescription>
               This permanently deletes your account and every video entry. There is no undo.
-              {isGoogleAccount ? ' Sign in with Google again to confirm.' : ' Enter your password to confirm.'}
+              {isGoogleAccount
+                ? ' Type your username, then sign in with Google again to confirm.'
+                : ' Type your username and enter your password to confirm.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -113,15 +127,33 @@ export function DeleteAccountSection() {
             </Alert>
           )}
 
+          <div className="space-y-2">
+            <Label htmlFor="delete-account-username">Username</Label>
+            <p className="select-none font-mono text-sm text-red-400/80" aria-hidden="true">
+              {confirmationText}
+            </p>
+            <Input
+              id="delete-account-username"
+              value={typedUsername}
+              onChange={(e) => setTypedUsername(e.target.value)}
+              disabled={isSubmitting}
+              autoComplete="off"
+              spellCheck={false}
+              aria-label={`Type ${confirmationText} to confirm`}
+            />
+          </div>
+
           {isGoogleAccount ? (
-            <div className="flex justify-center py-2">
-              <GoogleLogin
-                onSuccess={handleGoogleConfirm}
-                onError={() => setError('Google sign-in failed. Please try again.')}
-                theme="filled_black"
-                text="continue_with"
-              />
-            </div>
+            usernameConfirmed && (
+              <div className="flex justify-center py-2">
+                <GoogleLogin
+                  onSuccess={handleGoogleConfirm}
+                  onError={() => setError('Google sign-in failed. Please try again.')}
+                  theme="filled_black"
+                  text="continue_with"
+                />
+              </div>
+            )
           ) : (
             <div className="space-y-2">
               <Label htmlFor="delete-account-password">Password</Label>
@@ -144,7 +176,7 @@ export function DeleteAccountSection() {
                 type="button"
                 variant="destructive"
                 onClick={handlePasswordConfirm}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !usernameConfirmed}
               >
                 {isSubmitting ? 'Deleting...' : 'Permanently delete'}
               </Button>
