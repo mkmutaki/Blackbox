@@ -15,10 +15,6 @@
     "test": "npm run test:backend && npm run test:frontend && npm run test:e2e",
     "prepare": "husky"
   },
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "husky": "^9.1.7"

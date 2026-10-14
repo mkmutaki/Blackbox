@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # frontend/, backend/ and the repo root each keep their own
-  # package-lock.json (SEC-16) despite the root's npm "workspaces" field —
-  # three independent ecosystems, each needs its own entry here.
+  # frontend/, backend/ and the repo root are three independent npm
+  # projects, each with its own package-lock.json and no shared
+  # "workspaces" field — each needs its own entry here.
   - package-ecosystem: npm
     directory: /frontend
     schedule:

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Video, Pause, Play, Rewind, FastForward, Circle, Trash, ArrowLeft, Save } from 'lucide-react';
 import { cn, getSynodicDay } from '@/lib/utils';
 import { toast } from "sonner";
-import { post } from '@/services/api';
+import { get, post } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useRecording } from '@/context/RecordingContext';
@@ -17,6 +17,7 @@ const formatTime = (seconds: number) => {
 
 type OverlayState = {
   missionDay: number;
+  year: number;
   currentTime: string;
   recordingSeconds: number;
   username: string;
@@ -41,13 +42,11 @@ const drawOverlay = (ctx: CanvasRenderingContext2D, width: number, height: numbe
   ctx.shadowColor = 'rgba(255,255,255,0.5)';
   ctx.shadowBlur = 6 * scale;
   ctx.fillStyle = textColor;
-  ctx.font = `${22 * scale}px ${mono}`;
-  ctx.fillText('MISSION DAY', padX, padY);
 
-  const synodicText = `SYNODIC ${state.missionDay}`;
+  const synodicText = `SYNODIC ${state.missionDay}, ${state.year}`;
   ctx.font = `bold ${32 * scale}px ${mono}`;
   const synodicWidth = ctx.measureText(synodicText).width;
-  const synodicBoxY = padY + 34 * scale;
+  const synodicBoxY = padY;
   const boxPadX = 12 * scale;
   const boxPadY = 8 * scale;
 
@@ -78,7 +77,7 @@ const drawOverlay = (ctx: CanvasRenderingContext2D, width: number, height: numbe
   ctx.fillText(`TIME ${state.currentTime.slice(0, 2)}:${state.currentTime.slice(2, 4)}`, width - padX, padY);
 
   ctx.font = `${18 * scale}px ${mono}`;
-  ctx.fillText(`LOG ENTRY > ${state.username} #${state.logNumber}`, width - padX, padY + 38 * scale);
+  ctx.fillText(`LOG ENTRY #${state.logNumber} > ${state.username}`, width - padX, padY + 38 * scale);
   ctx.textAlign = 'left';
 
   const connectedSuffix = new Date().toISOString().replace(/[-:]/g, '').slice(0, 10);
@@ -113,6 +112,7 @@ const VideoRecorder = () => {
   const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const recordingVideoTrackRef = useRef<MediaStreamTrack | null>(null);
   const missionDayRef = useRef(0);
+  const logNumberRef = useRef("---");
   const currentTimeRef = useRef("");
   const randomDigitsRef = useRef("0000");
   const recordingTimeRef = useRef(0);
@@ -122,7 +122,8 @@ const VideoRecorder = () => {
 
   const [missionDay, setMissionDay] = useState(0);
   const [currentTime, setCurrentTime] = useState("");
-  const [logNumber, setLogNumber] = useState("009");
+  const [logNumber, setLogNumber] = useState("---");
+  const year = new Date().getFullYear();
   const [randomDigits, setRandomDigits] = useState("0000");
 
   useEffect(() => {
@@ -131,6 +132,18 @@ const VideoRecorder = () => {
     setMissionDay(day);
     missionDayRef.current = day;
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    // This recording will be the account's next log: saved count + 1.
+    get<unknown[]>('/videos')
+      .then((videos) => {
+        const next = (videos.length + 1).toString().padStart(3, '0');
+        setLogNumber(next);
+        logNumberRef.current = next;
+      })
+      .catch((err) => console.error('Failed to fetch log count:', err));
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -290,10 +303,11 @@ const VideoRecorder = () => {
         ctx.drawImage(hiddenVideo, 0, 0, canvas.width, canvas.height);
         drawOverlay(ctx, canvas.width, canvas.height, {
           missionDay: missionDayRef.current,
+          year: new Date().getFullYear(),
           currentTime: currentTimeRef.current,
           recordingSeconds: recordingTimeRef.current,
           username: (user?.profile?.username || 'GHOST').toUpperCase(),
-          logNumber,
+          logNumber: logNumberRef.current,
           randomDigits: randomDigitsRef.current,
         });
         animationFrameRef.current = requestAnimationFrame(drawFrame);
@@ -349,7 +363,10 @@ const VideoRecorder = () => {
           videoRef.current.preload = "auto";
           videoRef.current.load();
           
+          // One-shot: the element is later re-pointed at the live camera
+          // stream, which fires loadedmetadata again.
           videoRef.current.onloadedmetadata = () => {
+            if (videoRef.current) videoRef.current.onloadedmetadata = null;
             toast.success("Recording saved successfully");
           };
         }
@@ -476,6 +493,7 @@ const VideoRecorder = () => {
     
     if (recordedVideoUrl) {
       if (videoRef.current) {
+        videoRef.current.onloadedmetadata = null;
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
         
@@ -534,8 +552,7 @@ const VideoRecorder = () => {
       <div className="absolute inset-y-0 right-2 sm:right-12 w-[1px] sm:w-[2px] bg-white/60 my-[15px] sm:my-[30px]" />
 
       <div className="absolute top-4 left-4 sm:top-6 sm:left-16 space-y-1 font-mono z-10">
-        <div className="text-sm sm:text-lg text-grey-500 text-shadow text-shadow-white">MISSION DAY</div>
-        <div className="text-lg sm:text-3xl font-bold bg-secondary/50 px-2 sm:px-3 py-1 rounded text-shadow text-shadow-white">SYNODIC {missionDay}</div>
+        <div className="text-lg sm:text-3xl font-bold bg-secondary/50 px-2 sm:px-3 py-1 rounded text-shadow text-shadow-white">SYNODIC {missionDay}, {year}</div>
         {isRecording && (
           <div className="flex items-center gap-2 mt-2">
             <Circle size={10} className="text-red-500 animate-pulse sm:w-3 sm:h-3" fill="currentColor" />
@@ -551,8 +568,8 @@ const VideoRecorder = () => {
           {currentTime.slice(2, 4)}
         </div>
         <div className="text-xs sm:text-lg text-grey-500 text-shadow text-shadow-white">
-          <span className="block sm:inline">LOG ENTRY</span>
-          <span className="block sm:inline"> {'>'} {user?.profile?.username?.toUpperCase() || 'GHOST'} #{logNumber}</span>
+          <span className="block sm:inline">LOG ENTRY #{logNumber}</span>
+          <span className="block sm:inline"> {'>'} {user?.profile?.username?.toUpperCase() || 'GHOST'}</span>
         </div>
       </div>
 
@@ -593,16 +610,6 @@ const VideoRecorder = () => {
           disablePictureInPicture={true}
           disableRemotePlayback={true}
         />
-      )}
-
-      {!hasRecording && (
-        <button
-          onClick={goBack}
-          className="absolute bottom-6 sm:bottom-[31px] right-4 sm:right-12 md:right-16 lg:right-8 flex items-center p-2 sm:p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
-          type="button"
-        >
-          <ArrowLeft size={20} className="text-white sm:w-6 sm:h-6" />
-        </button>
       )}
 
       {hasRecording && !isRecording && (
@@ -683,6 +690,17 @@ const VideoRecorder = () => {
             data-testid="record-toggle"
           >
             <Video size={20} className="sm:w-6 sm:h-6" />
+          </button>
+        )}
+
+        {/* Positioned off the record button so it stays centred. */}
+        {!isRecording && !hasRecording && (
+          <button
+            onClick={goBack}
+            className="absolute left-full ml-3 sm:ml-6 flex items-center p-2 sm:p-3 rounded-full bg-secondary/50 hover:bg-accent/50 transition-colors"
+            type="button"
+          >
+            <ArrowLeft size={20} className="text-white sm:w-6 sm:h-6" />
           </button>
         )}
       </div>

@@ -282,27 +282,16 @@ finding), and CodeQL. `.github/dependabot.yml` watches all three npm
 "ecosystems" (root, `frontend/`, `backend/` — see the note below for why
 there are three) plus GitHub Actions itself.
 
-## Running `npm install` in this repo — read this before you do
+## Running `npm install` in this repo
 
-The root `package.json` declares an npm `"workspaces"` field
-(`["frontend", "backend"]`), **but** `frontend/` and `backend/` each also
-keep their own fully independent `package-lock.json`. That combination is
-a footgun: plain `npm install` or `npm ci`, run from *inside* `frontend/`
-or `backend/`, gets silently redirected by npm to resolve against the
-**root** instead of that directory's own lockfile — see
-`SECURITY_AUDIT.md` SEC-31 for exactly what that corrupted during one
-hardening pass (a deleted lockfile, a rewritten one, versions drifting out
-of sync with what's recorded) using nothing but ordinary, expected
-commands.
+The repo root, `frontend/` and `backend/` are three **independent** npm
+projects, each with its own `package-lock.json`. The root `package.json`
+deliberately has **no** `"workspaces"` field. It was removed because it
+made npm silently redirect installs run inside `frontend/` or `backend/`
+to the root lockfile, and it left a root lockfile that drifted out of
+sync and broke CI (see `SECURITY_AUDIT.md` SEC-31).
 
-**Always pass both flags** when installing inside either directory:
-
-```
-npm install --workspaces=false --include-workspace-root=false
-npm ci --workspaces=false --include-workspace-root=false
-npm audit fix --workspaces=false --include-workspace-root=false
-```
-
-`.github/workflows/ci.yml` already does this for every install step. This
-applies to local development too — a plain `cd backend && npm install`
-without the flags can quietly rewrite the wrong lockfile.
+Plain commands are correct now: `cd frontend && npm install`,
+`cd backend && npm ci`, and so on each use that directory's own lockfile.
+**Don't add a `workspaces` field back** without first deciding how the
+member lockfiles and Dependabot would work with it.

@@ -15,7 +15,7 @@ const Index = () => {
   // Get user data for username
   const { user } = useAuth();
 
-  // Shown to newly registered accounts only; completing or skipping clears the flag.
+  // Shown to newly registered accounts only; completing it clears the flag.
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {

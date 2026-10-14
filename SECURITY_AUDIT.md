@@ -49,7 +49,7 @@ exactly what's left. Phase 3 (admin-panel readiness) has also landed — see the
 | SEC-27 | High | ✅ Fixed | `backend/package.json` (express transitive) | `path-to-regexp` DoS + `body-parser` DoS CVEs |
 | SEC-07 | High | ✅ Fixed | `backend/controllers/authController.js:13` | No password policy |
 | SEC-24 | High | ✅ Not reproduced | `frontend/package.json` (react-router-dom) | Open-redirect CVEs, ships in the production bundle |
-| SEC-31 | High | ✅ Fixed | `.github/workflows/ci.yml` (root `package.json` `workspaces` field) | `npm install`/`npm ci` run inside `frontend/` or `backend/` silently resolves against the root workspace instead, corrupting the wrong lockfile |
+| SEC-31 | High | ✅ Fixed | root `package.json` `workspaces` field (removed) | `npm install`/`npm ci` run inside `frontend/` or `backend/` silently resolves against the root workspace instead, corrupting the wrong lockfile |
 | SEC-08 | Medium | ✅ Fixed | `frontend/package.json:58` | Dead `mongodb` dependency (the credential-leak file is already gone) |
 | SEC-09 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:40` | Client filename interpolated into S3 key |
 | SEC-10 | Medium | ✅ Fixed | `backend/controllers/authController.js:30` | Account enumeration on register |
@@ -246,15 +246,23 @@ All are variants of unexpected/open redirect via untrusted or protocol-relative 
 **Changes user-visible behaviour?** No.
 
 ### SEC-31 — `npm install`/`npm ci` run inside `frontend/` or `backend/` silently resolves against the root workspace instead *(new — found doing the Group H dependency work)*
-**Status: Fixed (Group H) — documented and worked around; the root cause (the `workspaces` field) is left in place, see below.**
+**Status: Fixed at the root cause.** Originally worked around in Group H with per-command flags; the root `workspaces` field has since been removed (repo-owner decision, 2026-10-13) — see "Resolution" below.
 
-**Location:** root `package.json`'s `"workspaces": ["frontend", "backend"]`, combined with `frontend/` and `backend/` each also keeping their own independent `package-lock.json` (SEC-16's "one lockfile per package").
+**Location:** root `package.json`'s `"workspaces": ["frontend", "backend"]`, combined with `frontend/` and `backend/` each also keeping their own independent `package-lock.json` (SEC-16 itself only removed `frontend/bun.lockb` so each directory has a single lockfile; the per-directory lockfiles predate it and exist because `frontend/` and `backend/` build and deploy independently).
 
 **What happened:** running the ordinary, expected commands — `cd backend && npm audit fix`, `cd frontend && npm install` — did not operate on that directory's own lockfile. npm detected the ancestor `workspaces` field and transparently re-anchored the install at the repo root instead. Concretely, during this pass: a plain `cd frontend && npm install` **deleted `frontend/package-lock.json` outright** and rewrote the root `package-lock.json` to absorb its ~400 packages; `cd backend && npm audit fix` updated `backend/node_modules` without touching `backend/package-lock.json` at all, leaving the two silently out of sync; a later root-level `cd .. && npm install` (intended only to install the root's own two devDependencies, `husky` and `@playwright/test`) rewrote **both** member lockfiles again with an 8,000+ line diff despite being run from outside either directory. All of this happened using nothing but the commands a contributor (human or AI) would normally reach for — none of it required `--force`, `--legacy-peer-deps`, or any other "I know what I'm doing" flag.
 
 **Exploit scenario — this is a supply-chain-integrity finding, not a classic request-path vulnerability:** a future contributor (or CI run) doing routine dependency maintenance — `npm audit fix`, adding a package — can unknowingly produce a `backend/package-lock.json` or `frontend/package-lock.json` that no longer matches what's actually in `node_modules`, or lose the member lockfile entirely. If that drifted/corrupted lockfile gets committed, a deploy that does `npm ci` against it (Render, most likely, for `backend/`) either installs a different dependency tree than what was tested, or fails outright. This is exactly the kind of silent, hard-to-notice divergence that supply-chain integrity controls (reproducible lockfiles, `npm ci` in deploy pipelines) exist to prevent — and it was reintroducing itself via totally ordinary commands.
 
 **Fix plan:** Every `npm install`/`npm ci`/`npm audit fix` invocation inside `frontend/` or `backend/` (locally or in CI) must pass `--workspaces=false --include-workspace-root=false` to force npm to treat that directory as its own project. `.github/workflows/ci.yml`'s install steps all do this now. **Not fixed as a repo-structure change:** removing the root `workspaces` field entirely would eliminate the footgun at the source, but that's a structural decision about how the repo is organized, not purely a security fix — raised to the repo owner rather than made unilaterally. Until/unless that happens, **any future `npm install`-family command run inside `frontend/` or `backend/` needs the same two flags**, and this note should stay somewhere a future contributor will actually see it (also added to `SECURITY.md`).
+
+**Resolution (2026-10-13):** the root `"workspaces"` field was removed, at the repo owner's request. The workaround had a second failure mode: the root `package-lock.json` still recorded every `frontend/` and `backend/` dependency, but nothing kept it in sync. Group H's dependency bumps updated only the member lockfiles, and Dependabot's `/frontend` and `/backend` entries do the same. As a result, the root `npm ci` in CI's Playwright job failed with `EUSAGE` ("package.json and package-lock.json … are not in sync") on every run. Changes:
+- `package.json`: `workspaces` field deleted.
+- Root `package-lock.json`: regenerated from scratch. It now covers only the root's own devDependencies (`@playwright/test`, `husky` and their dependencies), at the same versions as before.
+- `.github/workflows/ci.yml`: every `--workspaces=false --include-workspace-root=false` flag removed. Plain `npm ci` / `npm audit` now apply to each directory's own lockfile.
+- `.github/dependabot.yml` and `SECURITY.md`: comments and the install note updated to match.
+
+Verified locally after the change: a plain `npm ci` in the root, `backend/` and `frontend/` installs cleanly and leaves both member lockfiles unchanged; backend tests (175), frontend typecheck, unit tests (18) and `build:prod` pass, and the Playwright smoke test passes. The fix in GitHub Actions itself is unverified until CI runs on the pushed commit. **The two flags are no longer needed anywhere.**
 
 **Changes user-visible behaviour?** No — install-tooling/CI only.
 

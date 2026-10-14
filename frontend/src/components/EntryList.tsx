@@ -199,11 +199,12 @@ const EntryList = () => {
                   <p className="text-muted-foreground font-mono">
                     {formatDate(video.createdAt)}
                   </p>
-                  {video.category && (
+                  {(video.synodicDay || video.category) && (
                     <>
                       <span className="text-muted">•</span>
                       <p className="text-accent font-mono">
-                        {video.category}
+                        {/* Older records stored a "SOL-" category; derive the label instead. */}
+                        {video.synodicDay ? `SYN-${video.synodicDay}` : video.category?.replace(/^SOL-/, 'SYN-')}
                       </p>
                     </>
                   )}

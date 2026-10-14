@@ -17,14 +17,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # frontend/ and backend/ each keep their own package-lock.json (SEC-16),
-  # even though the root package.json also declares an npm "workspaces"
-  # field. That combination means a plain `npm ci`/`npm install` run from
-  # inside either directory gets silently redirected by npm to resolve
-  # against the ROOT instead — see SECURITY_AUDIT.md's "npm workspace
-  # install scoping" note. Every install step below passes
-  # --workspaces=false --include-workspace-root=false to force npm to
-  # treat that directory as its own project and use its own lockfile.
+  # The repo root, frontend/ and backend/ are three independent npm
+  # projects, each with its own package-lock.json. The root package.json
+  # deliberately has no "workspaces" field (removed — see SECURITY_AUDIT.md
+  # SEC-31), so a plain `npm ci` in any of them uses that directory's own
+  # lockfile.
   frontend-checks:
     name: Frontend lint, typecheck, tests
     runs-on: ubuntu-latest
@@ -38,7 +35,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci --workspaces=false --include-workspace-root=false
+      - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -57,7 +54,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci --workspaces=false --include-workspace-root=false
+      - run: npm ci
       - run: npm test
 
   e2e:
@@ -68,10 +65,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci --workspaces=false --include-workspace-root=false
-      - run: npm ci --workspaces=false --include-workspace-root=false
+      - run: npm ci
+      - run: npm ci
         working-directory: backend
-      - run: npm ci --workspaces=false --include-workspace-root=false
+      - run: npm ci
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test --config=e2e/playwright.config.ts
@@ -86,10 +83,10 @@ jobs:
           node-version: 22
       - name: backend (hard gate — currently clean)
         working-directory: backend
-        run: npm audit --audit-level=high --workspaces=false --include-workspace-root=false
+        run: npm audit --audit-level=high
       - name: frontend (informational — see SECURITY_AUDIT.md for the deferred tailwindcss-v3/braces dev-toolchain findings)
         working-directory: frontend
-        run: npm audit --audit-level=high --workspaces=false --include-workspace-root=false
+        run: npm audit --audit-level=high
         continue-on-error: true
 
   codeql:

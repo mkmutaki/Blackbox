@@ -39,8 +39,6 @@ export function OnboardingFlow({ isOpen, onComplete }: OnboardingFlowProps) {
   const synodicDay = getSynodicDay();
   const trimmedCallsign = callsign.trim();
 
-  // Skipping still finishes onboarding — whatever has been chosen so far is
-  // saved, so the flow never reappears for this account.
   const save = async () => {
     setError(null);
     setIsSaving(true);
@@ -180,13 +178,12 @@ export function OnboardingFlow({ isOpen, onComplete }: OnboardingFlowProps) {
       body: (
         <div className="space-y-4 py-4">
           <p className="font-mono text-sm leading-relaxed text-muted-foreground">
-            A synodic day is one full turn of the Earth relative to the Sun — the
-            24-hour day you actually live, rather than the 23 hours and 56 minutes it
-            takes the planet to spin once against the stars.
+            A synodic day(currently using earths) is one full turn of the Earth relative to the Sun — the
+            24-hour day you actually live.
           </p>
           <p className="font-mono text-sm leading-relaxed text-muted-foreground">
             Your logs are numbered by synodic day, counting from January 1st. It is
-            fixed for everyone, so entries line up no matter when you started.
+            fixed for everyone, so entries line up no matter when you started in the year.
           </p>
           <div className="rounded-lg border border-accent/30 bg-accent/10 p-4 text-center">
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -202,7 +199,6 @@ export function OnboardingFlow({ isOpen, onComplete }: OnboardingFlowProps) {
   ];
 
   const card = cards[cardIndex];
-  const isLastCard = cardIndex === TOTAL_CARDS - 1;
 
   return (
     <Dialog open={isOpen} modal>
@@ -257,15 +253,7 @@ export function OnboardingFlow({ isOpen, onComplete }: OnboardingFlowProps) {
 
         {card.body}
 
-        <div className="flex items-center justify-between gap-3">
-          {isLastCard ? (
-            <span />
-          ) : (
-            <Button type="button" variant="ghost" onClick={save} disabled={isSaving}>
-              Skip
-            </Button>
-          )}
-
+        <div className="flex items-center justify-end gap-3">
           <Button type="button" onClick={next} disabled={isSaving}>
             {isSaving ? 'Saving...' : card.primaryLabel}
           </Button>
