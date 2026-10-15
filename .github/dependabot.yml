@@ -3,28 +3,44 @@ updates:
   # frontend/, backend/ and the repo root are three independent npm
   # projects, each with its own package-lock.json and no shared
   # "workspaces" field — each needs its own entry here.
+  #
+  # Minor and patch updates are grouped into one PR per directory.
+  # Major updates are left ungrouped so each arrives as its own PR and
+  # can be accepted or ignored individually ("@dependabot ignore this
+  # major version") without blocking the routine updates.
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     groups:
-      dev-dependencies:
-        dependency-type: development
+      minor-and-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: npm
     directory: /backend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
 
+  # All action bumps in one PR: they edit adjacent lines of ci.yml, so
+  # separate PRs conflict with each other as soon as one is merged.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
