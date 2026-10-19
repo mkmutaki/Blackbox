@@ -14,7 +14,7 @@ const {
   deleteAccount,
 } = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/authMiddleware');
-const { authIpLimiter, authAccountLimiter, deleteAccountLimiter } = require('../middleware/rateLimit');
+const { authIpLimiter, authAccountLimiter, refreshIpLimiter, deleteAccountLimiter } = require('../middleware/rateLimit');
 const { validate } = require('../middleware/validate');
 
 // Pinning email to z.string().email() is the actual SEC-06 fix — an
@@ -40,8 +40,12 @@ const loginSchema = z.object({
   password: passwordInputSchema,
 });
 
+// A Google ID token is ~1-2KB. The cap stops a 100KB "credential" from
+// being parsed (and previously, logged) on every attempt.
+const googleCredentialSchema = z.string().min(1).max(4096);
+
 const googleSchema = z.object({
-  credential: z.string().min(1),
+  credential: googleCredentialSchema,
 });
 
 const verifyEmailSchema = z.object({
@@ -58,7 +62,7 @@ const resetPasswordSchema = z.object({
 // is present to a sane type/length.
 const deleteAccountSchema = z.object({
   password: z.string().min(1).max(256).optional(),
-  credential: z.string().min(1).optional(),
+  credential: googleCredentialSchema.optional(),
 });
 
 // validate() runs before the per-account limiter (not just before the
@@ -80,7 +84,7 @@ router.post('/google', authIpLimiter, validate(googleSchema), authAccountLimiter
 router.post('/logout', logout);
 
 // Rotate the refresh token for a new access token
-router.post('/refresh', refresh);
+router.post('/refresh', refreshIpLimiter, refresh);
 
 // Consume an emailed verification link
 router.post('/verify-email', validate(verifyEmailSchema), verifyEmail);

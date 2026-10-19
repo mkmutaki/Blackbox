@@ -8,6 +8,12 @@
 const hibpService = require('./hibp');
 
 const MIN_LENGTH = 8;
+// bcrypt only ever reads the first 72 bytes of its input and silently
+// ignores the rest, so a longer password would be quietly weaker than the
+// user thinks — anything differing only after byte 72 would also unlock
+// the account. Refuse it up front instead (SEC-39). Bytes, not characters:
+// non-ASCII characters take 2-4 bytes each in UTF-8.
+const MAX_BYTES = 72;
 
 const COMPOSITION_RULES = [
   { test: /[A-Z]/, message: 'must contain at least one uppercase letter' },
@@ -20,6 +26,10 @@ const COMPOSITION_RULES = [
 const validatePassword = async (password) => {
   if (typeof password !== 'string' || password.length < MIN_LENGTH) {
     return `Password must be at least ${MIN_LENGTH} characters`;
+  }
+
+  if (Buffer.byteLength(password, 'utf8') > MAX_BYTES) {
+    return `Password is too long (maximum ${MAX_BYTES} characters)`;
   }
 
   for (const rule of COMPOSITION_RULES) {
@@ -35,4 +45,4 @@ const validatePassword = async (password) => {
   return null;
 };
 
-module.exports = { validatePassword, MIN_LENGTH };
+module.exports = { validatePassword, MIN_LENGTH, MAX_BYTES };

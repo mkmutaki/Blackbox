@@ -96,14 +96,22 @@ const UserSchema = new mongoose.Schema({
   }
 });
 
+const BCRYPT_ROUNDS = 10;
+
+// A hash of a random value nobody knows, at the same cost as real ones.
+// Comparing against it costs the same time as checking a real password, so
+// "no such account" and "account has no password" (Google-only) can't be
+// told apart from "wrong password" by response time (SEC-35).
+const DUMMY_HASH = bcrypt.hashSync(require('node:crypto').randomBytes(32).toString('hex'), BCRYPT_ROUNDS);
+
 // Hash the password before saving
 UserSchema.pre('save', async function(next) {
   // Only hash the password if it's set and modified (Google-only accounts have no password)
   if (!this.password || !this.isModified('password')) return next();
-  
+
   try {
     // Generate salt and hash
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
@@ -111,9 +119,17 @@ UserSchema.pre('save', async function(next) {
   }
 });
 
+// Always false; exists only to spend the same time a real check would.
+UserSchema.statics.compareAgainstDummyHash = async function(candidatePassword) {
+  await bcrypt.compare(String(candidatePassword), DUMMY_HASH);
+  return false;
+};
+
 // Compare password method
 UserSchema.methods.comparePassword = async function(candidatePassword) {
-  if (!this.password) return false;
+  if (!this.password) {
+    return this.constructor.compareAgainstDummyHash(candidatePassword);
+  }
   return await bcrypt.compare(candidatePassword, this.password);
 };
 

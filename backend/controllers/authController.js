@@ -3,7 +3,7 @@ const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const ActionToken = require('../models/ActionToken');
 const googleAuthService = require('../services/googleAuth');
-const { signAccessToken } = require('../services/jwt');
+const { signAccessToken, verifyAccessToken } = require('../services/jwt');
 const { generateRawToken, hashToken } = require('../services/tokens');
 const { validatePassword } = require('../services/passwordPolicy');
 const { meetsMinimumAge, MIN_AGE_YEARS } = require('../services/agePolicy');
@@ -15,8 +15,10 @@ const { logSecurityEvent } = require('../services/securityLog');
 const emailService = require('../services/email');
 const { toSafeUser } = require('../services/userView');
 const {
+  ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   REFRESH_TOKEN_MAX_AGE_MS,
+  readCookie,
   setAccessTokenCookie,
   setRefreshTokenCookie,
   clearAuthCookies,
@@ -26,6 +28,16 @@ const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 const publicUser = toSafeUser;
+
+// Error name and driver code only. Mongo/Mongoose error messages echo the
+// offending values — a duplicate-key error on register carries the full
+// email address — and those don't belong in the host's logs (SEC-38).
+const logError = (label, error) => {
+  console.error(`${label}: ${error?.name || 'Error'}${error?.code ? ` code=${error.code}` : ''}`);
+};
+
+const DUPLICATE_KEY = 11000;
+const REGISTRATION_FAILED = 'Unable to complete registration. If you already have an account, try signing in instead.';
 
 const issueRefreshToken = async (user, familyId) => {
   const rawToken = generateRawToken();
@@ -44,7 +56,7 @@ const issueRefreshToken = async (user, familyId) => {
 const issueNewSession = async (res, user) => {
   const familyId = crypto.randomUUID();
   const refreshToken = await issueRefreshToken(user, familyId);
-  setAccessTokenCookie(res, signAccessToken(user));
+  setAccessTokenCookie(res, signAccessToken(user, familyId));
   setRefreshTokenCookie(res, refreshToken);
 };
 
@@ -81,7 +93,7 @@ const register = async (req, res) => {
     if (existingUser) {
       // Generic on purpose (SEC-10) — doesn't confirm this email is already
       // registered.
-      return res.status(400).json({ error: 'Unable to complete registration. If you already have an account, try signing in instead.' });
+      return res.status(400).json({ error: REGISTRATION_FAILED });
     }
 
     // Create new user (password is hashed in the pre-save hook)
@@ -111,7 +123,13 @@ const register = async (req, res) => {
 
     res.status(201).json({ user: publicUser(user) });
   } catch (error) {
-    console.error('Register error:', error);
+    // Two concurrent registrations for one email both pass the findOne
+    // check above; the unique index rejects the second. Same generic
+    // answer as the ordinary duplicate case, not a 500.
+    if (error?.code === DUPLICATE_KEY) {
+      return res.status(400).json({ error: REGISTRATION_FAILED });
+    }
+    logError('Register error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -128,6 +146,9 @@ const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
+      // Burn the same bcrypt work a real account would, so response time
+      // doesn't reveal whether the email is registered (SEC-35).
+      await User.compareAgainstDummyHash(password);
       await logSecurityEvent('login_failure', { ip: req.ip, meta: { email, reason: 'unknown_email' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -144,7 +165,7 @@ const login = async (req, res) => {
 
     res.json({ user: publicUser(user) });
   } catch (error) {
-    console.error('Login error:', error);
+    logError('Login error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -164,7 +185,11 @@ const googleAuth = async (req, res) => {
     try {
       payload = await googleAuthService.verifyGoogleToken(credential);
     } catch (verifyError) {
-      console.error('Google token verification failed:', verifyError);
+      // Fixed text only. google-auth-library builds its error messages
+      // from the submitted token and its decoded payload (email, name),
+      // so logging the error would let anyone write arbitrary text —
+      // including fake log lines — into the host's logs (SEC-36).
+      console.error('Google token verification failed');
       return res.status(401).json({ error: 'Invalid Google credential' });
     }
 
@@ -225,7 +250,7 @@ const googleAuth = async (req, res) => {
 
     res.json({ user: publicUser(user) });
   } catch (error) {
-    console.error('Google auth error:', error);
+    logError('Google auth error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -235,16 +260,32 @@ const googleAuth = async (req, res) => {
 // @access  Public (a missing/invalid token is a no-op, not an error)
 const logout = async (req, res) => {
   try {
-    const rawRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+    const rawRefreshToken = readCookie(req, REFRESH_TOKEN_COOKIE);
+    const revokeFamily = (filter) => RefreshToken.updateMany(filter, { $set: { revokedAt: new Date() } });
 
     if (rawRefreshToken) {
       const existing = await RefreshToken.findOne({ tokenHash: hashToken(rawRefreshToken) });
       if (existing) {
-        await RefreshToken.updateMany({ familyId: existing.familyId }, { $set: { revokedAt: new Date() } });
+        await revokeFamily({ familyId: existing.familyId });
+      }
+    } else {
+      // No refresh cookie (cleared, or blocked by the browser) — fall back
+      // to the access token's session id so logout still ends the session
+      // server-side instead of only clearing local state.
+      const rawAccessToken = readCookie(req, ACCESS_TOKEN_COOKIE);
+      if (rawAccessToken) {
+        try {
+          const decoded = verifyAccessToken(rawAccessToken);
+          if (typeof decoded.sid === 'string') {
+            await revokeFamily({ userId: decoded.userId, familyId: decoded.sid });
+          }
+        } catch {
+          // invalid or expired access token — nothing to revoke
+        }
       }
     }
   } catch (error) {
-    console.error('Logout error:', error);
+    logError('Logout error', error);
     // fall through — clearing cookies client-side still ends the session
     // from the browser's point of view even if the DB update above failed.
   }
@@ -258,7 +299,7 @@ const logout = async (req, res) => {
 // @access  Public (requires the refresh-token cookie)
 const refresh = async (req, res) => {
   try {
-    const rawRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+    const rawRefreshToken = readCookie(req, REFRESH_TOKEN_COOKIE);
     if (!rawRefreshToken) {
       return res.status(401).json({ error: 'No refresh token' });
     }
@@ -299,12 +340,12 @@ const refresh = async (req, res) => {
     existing.replacedByHash = hashToken(newRawToken);
     await existing.save();
 
-    setAccessTokenCookie(res, signAccessToken(user));
+    setAccessTokenCookie(res, signAccessToken(user, existing.familyId));
     setRefreshTokenCookie(res, newRawToken);
 
     res.json({ user: publicUser(user) });
   } catch (error) {
-    console.error('Refresh error:', error);
+    logError('Refresh error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -331,7 +372,7 @@ const verifyEmail = async (req, res) => {
 
     res.json({ message: 'Email verified' });
   } catch (error) {
-    console.error('Verify email error:', error);
+    logError('Verify email error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -363,7 +404,7 @@ const requestPasswordReset = async (req, res) => {
 
     res.json(genericResponse);
   } catch (error) {
-    console.error('Request password reset error:', error);
+    logError('Request password reset error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -414,7 +455,7 @@ const resetPassword = async (req, res) => {
 
     res.json({ message: 'Password reset successfully. Please sign in again.' });
   } catch (error) {
-    console.error('Reset password error:', error);
+    logError('Reset password error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -432,7 +473,7 @@ const getCurrentUser = async (req, res) => {
 
     res.json(toSafeUser(user));
   } catch (error) {
-    console.error('Get current user error:', error);
+    logError('Get current user error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -497,7 +538,7 @@ const deleteAccount = async (req, res) => {
 
     res.json({ message: 'Account deleted' });
   } catch (error) {
-    console.error('Delete account error:', error);
+    logError('Delete account error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };

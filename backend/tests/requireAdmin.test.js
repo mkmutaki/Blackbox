@@ -10,6 +10,7 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 const { requireAdmin } = require('../middleware/requireAdmin');
 const { JWT_ISSUER, JWT_AUDIENCE } = require('../services/jwt');
 const { createUserAndAgent, User } = require('./helpers');
+const RefreshToken = require('../models/RefreshToken');
 
 const mockRes = () => {
   const res = {};
@@ -90,9 +91,12 @@ describe('requireAdmin chained after authMiddleware', () => {
   it('ignores a `role: "admin"` claim inside an otherwise-valid token', async () => {
     const { email } = await createUserAndAgent();
     const user = await User.findOne({ email });
+    // A real, live session, so the only thing wrong with this token is the
+    // extra claim — authMiddleware would 401 a token with no live sid.
+    const { familyId } = await RefreshToken.findOne({ userId: user._id });
 
     const forged = jwt.sign(
-      { userId: user._id.toString(), tokenVersion: user.tokenVersion, role: 'admin' },
+      { userId: user._id.toString(), tokenVersion: user.tokenVersion, sid: familyId, role: 'admin' },
       process.env.JWT_SECRET,
       { algorithm: 'HS256', issuer: JWT_ISSUER, audience: JWT_AUDIENCE, expiresIn: '15m' }
     );
