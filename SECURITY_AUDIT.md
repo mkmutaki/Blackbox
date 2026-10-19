@@ -50,9 +50,11 @@ exactly what's left. Phase 3 (admin-panel readiness) has also landed — see the
 | SEC-07 | High | ✅ Fixed | `backend/controllers/authController.js:13` | No password policy |
 | SEC-24 | High | ✅ Not reproduced | `frontend/package.json` (react-router-dom) | Open-redirect CVEs, ships in the production bundle |
 | SEC-31 | High | ✅ Fixed | root `package.json` `workspaces` field (removed) | `npm install`/`npm ci` run inside `frontend/` or `backend/` silently resolves against the root workspace instead, corrupting the wrong lockfile |
+| SEC-41 | High | 🟧 Needs owner action | `backend/middleware/csrf.js` (`PROD_ORIGINS`) | Trusted origin `https://mkmutaki.github.io` is shared with seven other GitHub Pages sites, one loading an unpinned third-party script |
+| SEC-42 | High | 🟧 Accepted risk (owner decision) | `authController.js` (`googleAuth`, `verifyEmail`); `frontend/src/pages/auth/VerifyEmail.tsx` | Pre-registered account becomes linkable if the real owner opens its verification link |
 | SEC-08 | Medium | ✅ Fixed | `frontend/package.json:58` | Dead `mongodb` dependency (the credential-leak file is already gone) |
 | SEC-09 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:40` | Client filename interpolated into S3 key |
-| SEC-10 | Medium | ✅ Fixed | `backend/controllers/authController.js:30` | Account enumeration on register |
+| SEC-10 | Medium | 🟧 Accepted risk (Phase 4) | `backend/controllers/authController.js` (`register`) | Account enumeration on register — the message is generic but the status code still differs (400 vs 201) |
 | SEC-11 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:88,124` | Signed GET URLs valid for 1 hour |
 | SEC-12 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:115,157,179` | Invalid ObjectId → 500 instead of 400/404 |
 | SEC-13 | Medium | ✅ Fixed | `backend/controllers/profileController.js:39,61,113` | Raw documents returned, leaking `googleId` |
@@ -63,12 +65,21 @@ exactly what's left. Phase 3 (admin-panel readiness) has also landed — see the
 | SEC-18 | Medium | ✅ Resolved | `backend/models/User.js:78` | bcrypt cost factor 10 |
 | SEC-19 | Medium | ✅ Fixed | `backend/services/accountDeletion.js` | No account deletion capability |
 | SEC-28 | Medium | 🟨 Partial | `frontend/package.json` (dev toolchain) | Frontend audit findings; vite dev-server CVEs are the actionable ones |
+| SEC-32 | Medium | ✅ Fixed (Phase 4) | `backend/services/email.js` | Email stub wrote live reset/verification links and full addresses to the host's logs |
+| SEC-33 | Medium | ✅ Fixed (Phase 4) | `backend/middleware/authMiddleware.js`; `services/jwt.js` | Access token stayed valid for up to 15 minutes after logout |
+| SEC-34 | Medium | ✅ Fixed (Phase 4) | `routes/authRoutes.js` (`/refresh`); `routes/videoRoutes.js` (`/finalize`); `models/Video.js` | Unthrottled endpoints that each write a document; finalize replayable on one upload |
 | SEC-20 | Low | ✅ Fixed | `profileController.js` vs `videoRoutes.js` | Inconsistent input length limits |
 | SEC-21 | Low | ✅ Fixed | `backend/routes/videoRoutes.js:49-54` | `entryNumber` race on concurrent uploads |
 | SEC-22 | Low | ✅ Fixed | `backend/routes/videoRoutes.js:61` | Unvalidated `JSON.parse(jwk)` → 500 |
 | SEC-23 | Low | ✅ Fixed | `vite.config.ts`; `README.md:10-15`; root `package.json:11` | Dev/scaffold leftovers (Lovable, fake demo creds, dead script) |
 | SEC-29 | Low | ✅ Fixed | `backend/app.js:29-37` | Unauthenticated debug route added by Phase 0 test infra |
 | SEC-30 | Low | ⬜ Open | `.gitignore` | `.env` ignore pattern is path-specific, not a wildcard |
+| SEC-35 | Low | ✅ Fixed (Phase 4) | `authController.js` (`login`); `models/User.js` | Login timing revealed whether an email is registered |
+| SEC-36 | Low | ✅ Fixed (Phase 4) | `authController.js` (`googleAuth`) | Google verification errors logged the submitted token and payload (email); log injection |
+| SEC-37 | Low | ✅ Fixed (Phase 4) | `backend/app.js` (error handler); `services/cookies.js` | Malformed/oversized JSON and `j:` cookies produced 500s |
+| SEC-38 | Low | ✅ Fixed (Phase 4) | `authController.js` (`register` and catch blocks) | Duplicate-registration race returned 500 and logged the full email |
+| SEC-39 | Low | ✅ Fixed (Phase 4) | `services/passwordPolicy.js`; `frontend/src/lib/passwordPolicy.ts` | Passwords over 72 bytes silently truncated by bcrypt |
+| SEC-40 | Low | ✅ Fixed (Phase 4) | `services/videoService.js` (`isOwnUploadKey`) | Finalize ownership check was prefix-only |
 
 **New in Group D, not in the original audit:**
 - Email verification (`User.emailVerified`, `ActionToken` model, `/auth/verify-email`) and a password reset flow (`/auth/request-password-reset`, `/auth/reset-password`) now exist. **Email delivery is stubbed** — `backend/services/email.js` logs the verification/reset link to the server console instead of sending it (no provider was selected; see `SECURITY.md`). Nobody can self-serve either flow in production until a real provider is wired in.
@@ -291,7 +302,9 @@ Verified locally after the change: a plain `npm ci` in the root, `backend/` and 
 **Changes user-visible behaviour?** No.
 
 ### SEC-10 — Account enumeration on register
-**Status: Fixed (Group D).** Register's duplicate-email response changed to "Unable to complete registration. If you already have an account, try signing in instead." — doesn't confirm the email is registered. The new `/auth/request-password-reset` endpoint returns an identical response regardless of whether the account exists, for the same reason. Covered by `backend/tests/auth.test.js` (register) and `backend/tests/passwordFlows.test.js` (reset request — directly asserts both cases produce the same status and body).
+**Status: Accepted risk (corrected in Phase 4 — previously marked Fixed).** The generic message didn't close the leak: register still answers 400 for an existing email and 201 for a new one, so the status code alone is an oracle. Closing it means register no longer signs the user in and instead always replies "check your inbox", which needs a real email provider. The owner chose to accept this until one exists. Per-IP rate limiting (20 per 15 minutes) caps how fast it can be used. The login-timing variant of the same leak was fixed separately (SEC-35).
+
+**Original status: Fixed (Group D).** Register's duplicate-email response changed to "Unable to complete registration. If you already have an account, try signing in instead." — doesn't confirm the email is registered. The new `/auth/request-password-reset` endpoint returns an identical response regardless of whether the account exists, for the same reason. Covered by `backend/tests/auth.test.js` (register) and `backend/tests/passwordFlows.test.js` (reset request — directly asserts both cases produce the same status and body).
 
 **Location:** `backend/controllers/authController.js:30`
 
@@ -538,3 +551,62 @@ Verified by mutation: removing the append-only hooks fails 13 tests; leaking `jw
 10. **Audit retention.** Entries, including IPs, are kept indefinitely. See SECURITY.md.
 
 One open item carried forward rather than closed: SEC-28's Tailwind v3→v4 migration (the only remaining path to the `braces` CVE at the root of 25 frontend dev-toolchain findings), deferred by explicit decision. It's dev/build-only exposure; re-raise it if that changes.
+
+---
+
+## Phase 4 — Adversarial verification
+
+Attacks were run as executed tests against the real Express app in-process, using the in-memory database and fake S3. No running server and no real data were touched. A local dev backend reading `backend/.env` was listening on :5100 throughout and received no traffic.
+
+**Tests:** `backend/tests/adversarial/` (32 tests) and `frontend/src/lib/passwordPolicy.test.ts` (3 tests). Each attack test asserts the attack fails.
+
+**Verified by mutation:** with the app-code fixes stashed and only the new tests in place, 27 of the 32 backend tests failed, which shows each one catches its vulnerability. The 5 that passed on the old code are deliberate positive controls: another device stays signed in, opt-in link printing works, genuine uploads and logins succeed, and concurrent distinct uploads get unique entry numbers.
+
+**Final run:** backend 20 files / 207 tests passed; frontend 5 files / 21 tests passed; frontend typecheck clean; lint 0 errors (5 warnings, all in untouched files); production build succeeds. `npm audit`: backend 0, root 0, frontend 18 (12 ship at runtime: react-router 6.27.0 and `@remix-run/router` — open-redirect advisories that require navigating to an attacker-controlled path, which this app never does; every `navigate()` uses a literal path, so still not reproduced, see SEC-24; plus build-time tailwind/glob tooling and `@babel/runtime`).
+
+**Not run:**
+- The Playwright e2e smoke test. Its servers use fixed ports 5100/8080, both occupied by the owner's local dev servers, and the Vite `/api` proxy is hard-wired to 5100. Run `npm run test:e2e` after stopping the dev servers.
+- gitleaks. It isn't installed locally (nor is Docker); the CI workflow still runs it.
+
+### Attacks that failed against the code as it was, already covered by earlier tests
+Token forgery and session revocation (`session.test.js`, `requireAdmin.test.js`), IDOR across users on every `/videos/:id` verb (`video.test.js`), NoSQL operator payloads and prototype-pollution keys (`validation.test.js`), CSRF/CORS origin checks (`csrf.test.js`, `httpHardening.test.js`), key-material containment across every route (`keyMaterial.test.js`), SEC-01's basic case (`auth.test.js`). Malformed ObjectIds, including 12-character strings, are rejected by `mongoose.isValidObjectId` in the installed version.
+
+### SEC-32 — Email stub wrote live reset links to logs (Medium, Fixed)
+No email provider exists, so `services/email.js` printed every email to stdout: the full address and the live single-use token. On Render that is the service log, and a reset link is enough to take over the account. **Fix:** prints only a masked recipient and the subject; the body (with the link) is printed only when `EMAIL_STUB_PRINT_LINKS=true` is set explicitly. This fails closed — gating on `NODE_ENV=production` wouldn't have, because the dev `.env` doesn't set `NODE_ENV` and the Render setting couldn't be checked. **User-visible:** none. Developers who need links locally add `EMAIL_STUB_PRINT_LINKS=true` to `backend/.env`.
+
+### SEC-33 — Access token outlived logout (Medium, Fixed)
+Logout revoked the refresh-token family but not the access token, so a copied access token kept listing videos (including `jwk`) for up to 15 minutes. **Fix:** access tokens carry `sid`, their session's refresh `familyId`; `authMiddleware` requires an unrevoked token in that family belonging to the same user. Logout without a refresh cookie now falls back to the access token's `sid`. Other devices are unaffected. Costs one indexed query per request. **User-visible:** none; tokens issued before deploy have no `sid`, get one 401, and the frontend's existing silent refresh replaces them.
+
+### SEC-34 — Unbounded document writes (Medium, Fixed)
+`/refresh` had no rate limit, and each success writes a RefreshToken document kept for 30 days. `/finalize` had no rate limit and could be replayed on one uploaded key indefinitely, each call writing a Video document up to ~10 KB. Either is a way to fill the database (Atlas has a storage cap). **Fix:** `/refresh` 100 per 15 min per IP; `/finalize` 30/min per IP and 15/min per account; `Video.s3Key` is unique, with replays and concurrent duplicates answered 409. **Owner note:** the unique index is built on next startup. If production already has two records sharing an `s3Key`, the build fails (Mongoose logs an error and the app keeps running); the in-code duplicate check still applies.
+
+### SEC-35 — Login timing revealed registered emails (Low, Fixed)
+Unknown emails skipped bcrypt, so they answered an order of magnitude faster than wrong passwords; Google-only accounts (no password) answered fast too. **Fix:** both paths compare against a dummy hash of the same cost.
+
+### SEC-36 — Google errors logged attacker input (Low, Fixed)
+google-auth-library builds error messages from the submitted token (`Wrong number of segments in token: <token>`) and its decoded payload (`Token used too late, ... {email, name}`), and the controller logged the whole error. That put full emails in logs and let anyone write arbitrary lines — including fake `security_event` JSON — into them. **Fix:** fixed-text log line; credential capped at 4096 characters.
+
+### SEC-37 — Client errors returned 500 (Low, Fixed)
+The central error handler ignored `err.status`, so malformed JSON and bodies over 100 KB returned 500, and cookie-parser's `j:` JSON decoding let a cookie arrive as an object, which crashed `/refresh`. A `jwk` that parsed to `null`/a number/an array also 500'd. **Fix:** middleware 4xx errors keep their status, with fixed messages (the parser's message quotes the body); cookies are read through `readCookie`, which accepts strings only; `jwk` must parse to an object.
+
+### SEC-38 — Registration race (Low, Fixed)
+Concurrent registrations for one email both passed the existence check; the unique index rejected all but one with a 500, and the logged duplicate-key error contained the full email. **Fix:** duplicate-key is answered with the same generic 400; auth controller errors are logged as name and code only.
+
+### SEC-39 — bcrypt 72-byte truncation (Low, Fixed)
+bcrypt ignores input past 72 bytes, so any password matching the first 72 bytes unlocked the account. **Fix:** register and reset refuse passwords over 72 UTF-8 bytes, mirrored in the frontend. Login still accepts up to 256, so existing accounts are unaffected. **User-visible:** new passwords over 72 bytes are refused with "Password is too long".
+
+### SEC-40 — Prefix-only upload-key check (Low, Fixed)
+`isOwnUploadKey` accepted any key starting with `videos/<own id>/`, including `videos/<own id>/../<other id>/...`. Not exploitable as far as can be determined without real S3 — S3 and the SDK treat keys literally — but it depended on that. **Fix:** exact match on `videos/<own id>/<uuid v4>`.
+
+### SEC-41 — Shared GitHub Pages origin (High, Needs owner action)
+`https://mkmutaki.github.io` is the API's trusted origin (CORS with credentials, and the CSRF allowlist). Seven other GitHub Pages sites on this account share that origin; `1st-to-a-Century` loads `//cdn.jsdelivr.net/npm/sweetalert2@11` (floating version, no integrity hash), and two others load anime.js from cdnjs without integrity hashes. A browser `Origin` header has no path, so the API cannot tell those sites from Blackbox, and same-origin pages can also script each other's windows. A compromised script on any of them could act as any signed-in Blackbox user, including reading video keys. **Owner decision:** resolved by the planned custom domain; set `ALLOWED_ORIGINS` to it and remove `mkmutaki.github.io` from `PROD_ORIGINS` then. Until then, pinning versions and adding integrity hashes on the sibling sites reduces exposure.
+
+### SEC-42 — Takeover via an opened verification link (High, Accepted risk)
+An attacker registers the victim's email. The verification email goes to the victim; opening it marks the attacker's account verified (`VerifyEmail.tsx` submits on page load, no session required). The victim's later Google sign-in then links to that account, and the attacker's password opens it. **Owner decision:** accepted, with email copy telling users not to open links they didn't request. Residual risk: mail security scanners in some organisations open links automatically. Code options if revisited: require a password sign-in before linking Google to a password account, or require a click (not page load) to verify.
+
+### Observations — reasoned from the code, not executed
+- **`NODE_ENV` on Render is unverified.** If unset, `localhost:8080`/`:3000` remain trusted origins in production (`csrf.js`). Owner: confirm `NODE_ENV=production` is set on Render.
+- **Proxy hop count is unverified.** `trust proxy 1` is correct only if exactly one proxy appends to `X-Forwarded-For`. If Render has more hops, every client shares one rate-limit bucket. Owner: check `req.ip` on a deployed instance.
+- **Concurrent `/refresh` with one token** can rotate it more than once (check and update aren't atomic). Forks stay in the same family, so reuse detection still revokes them all. Not tested.
+- **Per-account login limiting allows lockout:** 5 failed attempts from anyone block the real owner for 15 minutes. `/google` has no email before verification, so it falls back to IP at 5 per 15 minutes — tight for shared networks.
+- **A second Google identity with the same verified email re-links** an already-linked account to the new `sub`. It requires controlling that address at Google, which is the same capability a password reset requires.
