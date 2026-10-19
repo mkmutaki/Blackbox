@@ -3,12 +3,23 @@
 // before implementing" — not yet answered, so this logs instead of
 // sending). Email verification and password reset are fully functional in
 // code, but a user cannot self-serve either one in production right now —
-// the link only ever reaches the server log, not an inbox. Swap the body
-// of `sendEmail` for a real provider call (Resend/SES/SendGrid/etc.) and
-// nothing else in the app needs to change — every caller already goes
-// through this one function.
+// nothing reaches an inbox. Swap the body of `sendEmail` for a real
+// provider call (Resend/SES/SendGrid/etc.) and nothing else in the app
+// needs to change — every caller already goes through this one function.
+//
+// The message body carries a live single-use token (a password-reset link
+// is enough to take over the account), so it is only ever printed when
+// EMAIL_STUB_PRINT_LINKS=true is set explicitly — for local development.
+// Fails closed: an unset NODE_ENV on a real deploy must not be enough to
+// put reset links and full addresses into the host's logs (SEC-32).
+const { maskEmail } = require('./securityLog');
+
 const sendEmail = async ({ to, subject, text }) => {
-  console.log(`[email:stub] to=${to} subject="${subject}"\n${text}`);
+  if (process.env.EMAIL_STUB_PRINT_LINKS === 'true') {
+    console.log(`[email:stub] to=${to} subject="${subject}"\n${text}`);
+    return;
+  }
+  console.log(`[email:stub] not sent (no email provider configured): to=${maskEmail(to)} subject="${subject}"`);
 };
 
 const sendVerificationEmail = async (user, rawToken) => {

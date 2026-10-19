@@ -211,8 +211,11 @@ admin panel exists.
 Email verification and password reset are fully implemented end to end —
 `backend/services/email.js` is the one function every send goes through —
 but no real provider is wired in yet (the prompt that drove this asks to
-pick one before implementing; that hasn't happened). Today, both flows log
-the link to the server's console instead of sending it. **Nobody can
+pick one before implementing; that hasn't happened). Today the stub logs
+only a masked recipient and the subject. The link itself is printed only
+when `EMAIL_STUB_PRINT_LINKS=true` is set, for local development — never
+set it on a real deploy, because a reset link in a log is enough to take
+over that account (SEC-32). **Nobody can
 self-serve either flow in production** until a provider (Resend, SES,
 SendGrid, …) is chosen and `sendEmail` is pointed at it — everything else
 (token generation, expiry, single-use enforcement, the SEC-01 Google-linking

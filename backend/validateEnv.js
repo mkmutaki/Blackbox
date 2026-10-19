@@ -26,6 +26,10 @@ const envSchema = z.object({
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).optional(),
   // Comma-separated CORS/CSRF allowlist. See middleware/csrf.js.
   ALLOWED_ORIGINS: z.string().optional(),
+  // Local dev only: print stubbed emails (including their live
+  // verify/reset links) to stdout. Never set this on a real deploy — see
+  // services/email.js.
+  EMAIL_STUB_PRINT_LINKS: z.enum(['true', 'false']).optional(),
 });
 
 // Fails fast with the list of what's wrong — field names and constraint
