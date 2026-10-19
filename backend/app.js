@@ -84,8 +84,26 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 
+// Fixed wording for client errors raised by middleware (express.json's
+// malformed-body/too-large errors). The parser's own message isn't used:
+// it quotes the request body back.
+const CLIENT_ERROR_MESSAGES = {
+  400: 'Invalid request',
+  413: 'Request body too large',
+  415: 'Unsupported request encoding',
+};
+
 // Error handling middleware
 app.use((err, req, res, next) => {
+  // A 4xx raised by middleware is the client's mistake, not a server fault:
+  // answer with its real status instead of a 500 (SEC-37), and don't dump
+  // a stack trace for it.
+  const status = err.status || err.statusCode;
+  if (Number.isInteger(status) && status >= 400 && status < 500) {
+    console.error(`Client error ${status}: ${err.type || err.name}`);
+    return res.status(status).json({ error: CLIENT_ERROR_MESSAGES[status] || 'Invalid request' });
+  }
+
   console.error(err.stack);
   res.status(500).json({
     error: 'Server error',

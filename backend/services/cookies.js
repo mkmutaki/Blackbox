@@ -65,7 +65,17 @@ const clearAuthCookies = (res) => {
   res.clearCookie(REFRESH_TOKEN_COOKIE, { ...baseCookieOptions(), path: REFRESH_COOKIE_PATH });
 };
 
+// cookie-parser JSON-decodes any value starting with `j:`, so a cookie can
+// arrive as an object or array instead of a string. Every token we issue is
+// a plain string — anything else is treated as absent rather than handed to
+// code that hashes or verifies it (SEC-37).
+const readCookie = (req, name) => {
+  const value = req.cookies?.[name];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+};
+
 module.exports = {
+  readCookie,
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   ACCESS_TOKEN_MAX_AGE_MS,
