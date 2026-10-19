@@ -71,6 +71,34 @@ const presignAccountLimiter = makeAccountLimiter({
   keyFn: userIdKey,
 });
 
+// Each successful refresh writes a new RefreshToken document that lives for
+// 30 days, so an unthrottled /refresh loop is a way to grow the database
+// without bound (SEC-34). Legitimate clients refresh about once per 15
+// minutes per tab, and api.ts coalesces concurrent attempts into one — the
+// ceiling is generous enough for a shared office/school IP.
+const refreshIpLimiter = makeIpLimiter({
+  windowMs: FIFTEEN_MIN,
+  max: 100,
+  message: 'Too many session refreshes from this network, please try again later.',
+});
+
+// Finalize writes a Video document. It's also capped by the one-record-per-
+// upload-key rule in videoService, but the limit keeps the write rate in
+// line with presign's (SEC-34). Separate instances from the presign
+// limiters, so the two routes don't share one budget.
+const finalizeIpLimiter = makeIpLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: 'Too many upload requests, please slow down.',
+});
+
+const finalizeAccountLimiter = makeAccountLimiter({
+  windowMs: 60 * 1000,
+  max: 15,
+  message: 'Too many upload requests for this account, please slow down.',
+  keyFn: userIdKey,
+});
+
 // Account deletion is already behind authMiddleware + a re-auth check
 // (password or a fresh Google credential), but that re-auth check is
 // itself guessable (a password) — limit attempts the same way login does.
@@ -88,5 +116,8 @@ module.exports = {
   authAccountLimiter,
   presignIpLimiter,
   presignAccountLimiter,
+  refreshIpLimiter,
+  finalizeIpLimiter,
+  finalizeAccountLimiter,
   deleteAccountLimiter,
 };

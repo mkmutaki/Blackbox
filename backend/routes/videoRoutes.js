@@ -10,7 +10,12 @@ const {
   deleteVideo,
 } = require('../controllers/videoController');
 const { authMiddleware } = require('../middleware/authMiddleware');
-const { presignIpLimiter, presignAccountLimiter } = require('../middleware/rateLimit');
+const {
+  presignIpLimiter,
+  presignAccountLimiter,
+  finalizeIpLimiter,
+  finalizeAccountLimiter,
+} = require('../middleware/rateLimit');
 const { validate, objectIdParam } = require('../middleware/validate');
 
 // Consistent length cap everywhere a title can be set (SEC-20 — previously
@@ -35,7 +40,7 @@ const patchTitleSchema = z.object({
 router.use(authMiddleware);
 
 router.post('/presign', presignIpLimiter, presignAccountLimiter, presign);
-router.post('/finalize', validate(finalizeSchema), finalize);
+router.post('/finalize', finalizeIpLimiter, finalizeAccountLimiter, validate(finalizeSchema), finalize);
 router.get('/', listVideos);
 router.get('/:id', objectIdParam('id'), getVideo);
 router.patch('/:id', objectIdParam('id'), validate(patchTitleSchema), updateVideoTitle);

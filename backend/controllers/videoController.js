@@ -33,6 +33,10 @@ const finalize = async (req, res) => {
       return res.status(400).json({ error: 'Upload not found — please record and save again' });
     }
 
+    if (await videoService.isKeyFinalized(key)) {
+      return res.status(409).json({ error: 'This upload has already been saved' });
+    }
+
     let parsedJwk;
     try {
       parsedJwk = JSON.parse(jwk);
@@ -40,10 +44,22 @@ const finalize = async (req, res) => {
       return res.status(400).json({ error: 'Invalid jwk' });
     }
 
+    // The client always sends an exported JWK object. Anything else (null,
+    // a number, an array) could never decrypt and previously failed the
+    // schema's `required` check as a 500.
+    if (parsedJwk === null || typeof parsedJwk !== 'object' || Array.isArray(parsedJwk)) {
+      return res.status(400).json({ error: 'Invalid jwk' });
+    }
+
     const video = await videoService.createVideoRecord({ ownerId: userId, key, iv, jwk: parsedJwk, title });
 
     res.status(201).json({ id: video._id, entryNumber: video.entryNumber });
   } catch (err) {
+    // Two concurrent finalizes for one key both pass isKeyFinalized; the
+    // unique index on s3Key rejects the second.
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: 'This upload has already been saved' });
+    }
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }

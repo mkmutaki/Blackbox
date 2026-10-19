@@ -46,7 +46,16 @@ const getNextEntryNumber = async (ownerId) => {
 
 const uploadKeyPrefix = (ownerId) => `videos/${ownerId}/`;
 
-const isOwnUploadKey = (ownerId, key) => key.startsWith(uploadKeyPrefix(ownerId));
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+// Exactly the shape createUploadTarget produces — videos/<own id>/<uuid> —
+// not merely the right prefix. A prefix check alone would accept
+// `videos/<own id>/../<other id>/...`, which is only harmless for as long
+// as every layer between here and S3 keeps treating keys literally (SEC-40).
+const isOwnUploadKey = (ownerId, key) => {
+  const prefix = uploadKeyPrefix(ownerId);
+  return key.startsWith(prefix) && UUID_PATTERN.test(key.slice(prefix.length));
+};
 
 // Server-generated key only — a client-supplied filename never reaches
 // storage (SEC-09).
@@ -63,6 +72,8 @@ const createUploadTarget = async (ownerId) => {
 
   return { url, fields, key };
 };
+
+const isKeyFinalized = (key) => Video.exists({ s3Key: key });
 
 const uploadExists = async (key) => (await s3.headObject({ bucket: BUCKET, key })).exists;
 
@@ -125,6 +136,7 @@ module.exports = {
   isOwnUploadKey,
   createUploadTarget,
   uploadExists,
+  isKeyFinalized,
   createVideoRecord,
   findVideosByOwner,
   findOwnedVideo,

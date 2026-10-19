@@ -2,7 +2,10 @@ const mongoose = require('mongoose');
 
 const VideoSchema = new mongoose.Schema({
   title: { type: String },
-  s3Key: { type: String, required: true },
+  // One record per stored object: finalize can't be replayed to mint
+  // unlimited records for one upload (SEC-34), and deleting one record can
+  // never strand a second record pointing at the same, now-deleted object.
+  s3Key: { type: String, required: true, unique: true },
   iv: { type: String, required: true },
   jwk: { type: mongoose.Schema.Types.Mixed, required: true },
   createdAt: { type: Date, default: Date.now },
