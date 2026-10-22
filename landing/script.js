@@ -5,7 +5,7 @@ const TERMINAL_SCRIPT = [
   ['record', 'Open the camera. Talk about your day. Sixty seconds is plenty.'],
   ['keep', 'It lands in your box, encrypted, waiting for you.'],
   ['revisit', 'Scroll back through the ordinary days that turned out to matter.'],
-  ['pass on', 'Choose who opens which entry, and when they get to.'],
+  ['pass on', 'Coming soon: choose who opens which entry, and when they get to.'],
 ];
 
 const TYPE_SPEED_MS = 18; // ms per character for command lines
