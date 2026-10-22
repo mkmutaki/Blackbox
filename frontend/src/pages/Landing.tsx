@@ -9,13 +9,14 @@ import {
   Smartphone,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { CONTACT_EMAIL, LEGAL_LINKS } from "@/lib/legal";
 import styles from "./Landing.module.css";
 
 const terminalLines = [
   ["record", "Open the camera. Talk about your day. Sixty seconds is plenty."],
   ["keep", "It lands in your box, encrypted, waiting for you."],
   ["revisit", "Scroll back through the ordinary days that turned out to matter."],
-  ["pass on", "Choose who opens which entry, and when they get to."],
+  ["pass on", "Coming soon: choose who opens which entry, and when they get to."],
 ] as const;
 
 function Terminal() {
@@ -86,7 +87,7 @@ export default function Landing() {
         <span className={styles.brand}>blackb0x</span>
         <div className={styles.navRight}>
           <span className={styles.beta}>Early access</span>
-          <Link className={styles.outlineButton} to={appPath}>
+          <Link className={styles.outlineButton} to={appPath} target="_blank" rel="noopener noreferrer">
             Try the beta <ArrowUpRight size={15} />
           </Link>
         </div>
@@ -96,10 +97,10 @@ export default function Landing() {
         <section className={styles.hero}>
           <p className={styles.kicker}>A safe keep for video diaries</p>
           <h1>One day they&apos;ll want to hear your voice.</h1>
-          <p className={styles.subtitle}>Record a minute of today. Seal it. Choose who opens it, and when.</p>
+          <p className={styles.subtitle}>Record a minute of today. Seal it. Soon, choose who opens it, and when.</p>
           <Terminal />
           <div className={styles.ctaRow}>
-            <Link className={`${styles.outlineButton} ${styles.ctaButton}`} to={appPath}>
+            <Link className={`${styles.outlineButton} ${styles.ctaButton}`} to={appPath} target="_blank" rel="noopener noreferrer">
               <Radio size={16} /> Start recording — free
             </Link>
             <a className={styles.ghostButton} href="#privacy">See how it&apos;s protected</a>
@@ -119,7 +120,7 @@ export default function Landing() {
 
         <section className={styles.privacy} id="privacy">
           <h2>A black box, not a feed</h2>
-          <p className={styles.privacySubtitle}>Nothing you record is public, promoted, or read by us.</p>
+          <p className={styles.privacySubtitle}>Nothing you record is public or promoted, and we don&apos;t open your entries without your permission.</p>
           <div className={styles.privacyGrid}>
             <article className={styles.privacyCard}>
               <LockKeyhole className={styles.cardIcon} />
@@ -128,13 +129,13 @@ export default function Landing() {
             </article>
             <article className={styles.privacyCard}>
               <EyeOff className={styles.cardIcon} />
-              <h3>No eyes but yours</h3>
-              <p>Never scanned for ads, never used to train models, never shown to strangers.</p>
+              <h3>Private by default</h3>
+              <p>Never scanned for ads, never used to train models, never shown to strangers. We don&apos;t watch your entries unless you ask us to or the law requires it.</p>
             </article>
             <article className={styles.privacyCard}>
               <HeartHandshake className={styles.cardIcon} />
-              <h3>Passed on, on your terms</h3>
-              <p>Name who inherits an entry and the moment it should reach them.</p>
+              <h3>Passed on, on your terms <span className={styles.planned}>Coming soon</span></h3>
+              <p>Name who inherits an entry and the moment it should reach them. Not available yet; we&apos;re building it.</p>
             </article>
           </div>
         </section>
@@ -142,7 +143,10 @@ export default function Landing() {
 
       <footer className={styles.footer}>
         <span>blackbox — beta 0.4</span>
-        <div><a href="#privacy">Privacy policy</a><a href="mailto:hello@blackbox.app">Contact</a></div>
+        <div>
+          {LEGAL_LINKS.map(({ to, label }) => <Link key={to} to={to}>{label}</Link>)}
+          <a href={`mailto:${CONTACT_EMAIL}`}>Contact</a>
+        </div>
       </footer>
     </div>
   );
