@@ -1,7 +1,7 @@
 // frontend/src/components/LogoutTimer.tsx
 import { useLogoutTimer } from '@/hooks/useLogoutTimer';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 
@@ -19,6 +19,12 @@ export const LogoutTimer = ({
   const { user, logout } = useAuth();
   const location = useLocation();
 
+  // Toasts only make sense inside the app. Anywhere else (landing, auth
+  // pages) the session still expires on the same schedule, just silently.
+  // A ref so the timeout callback sees the route at the moment it fires.
+  const onAppRef = useRef(location.pathname === '/home');
+  onAppRef.current = location.pathname === '/home';
+
   // The onboarding "lock after idle" answer wins; 0 means never auto-lock.
   const savedMinutes = user?.profile?.autoLockMinutes;
   const effectiveMinutes = savedMinutes ?? timeoutMinutes;
@@ -28,6 +34,7 @@ export const LogoutTimer = ({
     timeoutMinutes: effectiveMinutes,
     onTimeout: () => {
       logout();
+      if (!onAppRef.current) return;
       toast({
         title: "Session Expired",
         description: "You have been logged out due to inactivity.",
@@ -45,7 +52,7 @@ export const LogoutTimer = ({
 
   // Show warning toast when approaching timeout
   useEffect(() => {
-    if (isActive && timeRemaining === showWarningAt) {
+    if (isActive && timeRemaining === showWarningAt && onAppRef.current) {
       toast({
         title: "Session Warning",
         description: `Your session will expire in ${Math.floor(showWarningAt / 60)} minutes due to inactivity.`,
