@@ -7,6 +7,7 @@ const videoRoutes = require('./routes/videoRoutes');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const { csrfOriginCheck, getAllowedOrigins } = require('./middleware/csrf');
+const { clientIp } = require('./middleware/clientIp');
 
 // Defence in depth under SEC-06/SEC-26: every string field that reaches a
 // query filter is already pinned to z.string() by middleware/validate.js,
@@ -27,6 +28,12 @@ const app = express();
 // spoof-proof: clients can only prepend entries, and Express reads from the
 // right, stopping at the first untrusted (public) one.
 app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+
+// On Render that first public hop is Cloudflare's edge, not the client —
+// clientIp swaps in Cloudflare's CF-Connecting-IP when (and only when) the
+// hop is a Cloudflare address. First middleware, so everything below sees
+// the resolved IP.
+app.use(clientIp);
 
 // Security middleware. This is a pure JSON API with no HTML/static assets
 // of its own, so a locked-down CSP (default-src 'none') is safe — it only
