@@ -18,10 +18,15 @@ mongoose.set('strictQuery', true);
 
 const app = express();
 
-// Render sits in front of this app behind exactly one reverse-proxy hop —
-// trusting that (and only that) hop means req.ip reflects the real client,
-// which both rate limiting and the CSRF check below rely on.
-app.set('trust proxy', 1);
+// Render puts more than one internal proxy hop in front of this app (a
+// deployed `trust proxy 1` reported a 10.x address as every client's IP,
+// collapsing all users into one rate-limit bucket). Trusting private and
+// loopback addresses — rather than a fixed hop count — makes Express walk
+// back through X-Forwarded-For past every internal hop to the first public
+// address: the real client, however many hops Render uses. Still
+// spoof-proof: clients can only prepend entries, and Express reads from the
+// right, stopping at the first untrusted (public) one.
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
 
 // Security middleware. This is a pure JSON API with no HTML/static assets
 // of its own, so a locked-down CSP (default-src 'none') is safe — it only

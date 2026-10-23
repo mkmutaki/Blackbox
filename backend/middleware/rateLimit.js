@@ -45,9 +45,13 @@ const userIdKey = (req) => req.user?.userId?.toString() || null;
 
 const FIFTEEN_MIN = 15 * 60 * 1000;
 
+// Per-IP limits are deliberately generous: one public IP is often many
+// people (mobile carrier CGNAT, offices, campuses). Password guessing is
+// held back by the per-account limit below (5 per account), not this one —
+// this only caps a single source spraying many accounts.
 const authIpLimiter = makeIpLimiter({
   windowMs: FIFTEEN_MIN,
-  max: 20,
+  max: 100,
   message: 'Too many attempts from this network, please try again later.',
 });
 
@@ -75,10 +79,10 @@ const presignAccountLimiter = makeAccountLimiter({
 // 30 days, so an unthrottled /refresh loop is a way to grow the database
 // without bound (SEC-34). Legitimate clients refresh about once per 15
 // minutes per tab, and api.ts coalesces concurrent attempts into one — the
-// ceiling is generous enough for a shared office/school IP.
+// ceiling leaves room for many users behind one shared IP (CGNAT, offices).
 const refreshIpLimiter = makeIpLimiter({
   windowMs: FIFTEEN_MIN,
-  max: 100,
+  max: 300,
   message: 'Too many session refreshes from this network, please try again later.',
 });
 
