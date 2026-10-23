@@ -48,6 +48,15 @@ describe('AuditLog is append-only', () => {
     expect(after.action).toBe('seed_event');
   });
 
+  it('expires entries after 12 months, the period the Privacy Policy states', async () => {
+    expect(AuditLog.RETENTION_SECONDS).toBe(365 * 24 * 60 * 60);
+
+    await AuditLog.syncIndexes();
+    const ttl = (await AuditLog.collection.indexes()).find((index) => index.expireAfterSeconds !== undefined);
+    expect(ttl.key).toEqual({ createdAt: 1 });
+    expect(ttl.expireAfterSeconds).toBe(AuditLog.RETENTION_SECONDS);
+  });
+
   it('is only ever referenced by services/securityLog.js in application code', () => {
     // Funnelling every write through one function is what keeps redaction
     // and append-only from being bypassed by a future caller. Reading the

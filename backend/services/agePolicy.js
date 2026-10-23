@@ -1,9 +1,10 @@
 // Real age-gating (SECURITY_HARDENING_PROMPT.md §5.G data-minimisation
 // follow-up): dateOfBirth was previously collected but never actually
-// enforced as a minimum age, only checked against the future. Minimum age
-// is a product decision, not a security one — raised and confirmed at 8
-// years old.
-const MIN_AGE_YEARS = 8;
+// enforced as a minimum age, only checked against the future. 13 is the
+// floor below which US law (COPPA) requires verifiable parental consent,
+// which Blackbox doesn't collect — the Terms and Privacy Policy state 13+
+// too, so changing this means changing those documents as well.
+const MIN_AGE_YEARS = 13;
 
 // Month/day-aware, not a bare year subtraction — someone born late in the
 // calendar year would otherwise be overcounted by nearly a full year until

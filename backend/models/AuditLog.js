@@ -23,6 +23,14 @@ const AuditLogSchema = new mongoose.Schema({
 }, { versionKey: false });
 
 AuditLogSchema.index({ createdAt: -1 });
+
+// Kept for 12 months, then MongoDB itself deletes them. Entries hold IP
+// addresses, and Privacy Policy §6 (frontend/src/pages/legal/Privacy.tsx)
+// promises this period, so change both together. The TTL sweep runs inside
+// the database, not through Mongoose, so the append-only hooks below don't
+// (and aren't meant to) stop it: application code still can't delete entries.
+const RETENTION_SECONDS = 365 * 24 * 60 * 60;
+AuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: RETENTION_SECONDS });
 AuditLogSchema.index({ actor: 1, createdAt: -1 });
 AuditLogSchema.index({ targetType: 1, targetId: 1, createdAt: -1 });
 
@@ -50,3 +58,4 @@ AuditLogSchema.pre(
 AuditLogSchema.pre('bulkWrite', function (next) { next(appendOnlyError()); });
 
 module.exports = mongoose.model('AuditLog', AuditLogSchema);
+module.exports.RETENTION_SECONDS = RETENTION_SECONDS;

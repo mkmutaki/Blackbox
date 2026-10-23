@@ -12,6 +12,9 @@ import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import VerifyEmail from "./pages/auth/VerifyEmail";
+import Terms from "./pages/legal/Terms";
+import Privacy from "./pages/legal/Privacy";
+import HealthData from "./pages/legal/HealthData";
 
 // Components
 import { Header } from "./components/Header";
@@ -49,6 +52,9 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/health-data" element={<HealthData />} />
 
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />

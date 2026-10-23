@@ -2,7 +2,7 @@
 // database operation or the bootstrap script — never through HTTP. The
 // route allowlists already guarantee this; these tests lock it in so a
 // future route can't quietly regress it.
-const { createAgent, createUserAndAgent, uniqueEmail, VALID_PASSWORD, User } = require('./helpers');
+const { createAgent, createUserAndAgent, uniqueEmail, VALID_PASSWORD, User, CURRENT_TERMS_VERSION, GOOGLE_SIGNUP } = require('./helpers');
 const googleAuthService = require('../services/googleAuth');
 
 // Every shape a client might try: a top-level field, a nested one, and a
@@ -29,7 +29,7 @@ describe('User.role', () => {
   it('cannot be set at registration', async () => {
     const email = uniqueEmail();
     const res = await createAgent().post('/api/auth/register').send({
-      email, password: VALID_PASSWORD, fullName: 'Mallory', dateOfBirth: '1990-01-01', ...ESCALATION_FIELDS,
+      email, password: VALID_PASSWORD, fullName: 'Mallory', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION, ...ESCALATION_FIELDS,
     });
 
     expect(res.status).toBe(201);
@@ -41,7 +41,7 @@ describe('User.role', () => {
     const spy = vi.spyOn(googleAuthService, 'verifyGoogleToken')
       .mockResolvedValueOnce({ sub: 'sub-role', email, email_verified: true, name: 'G' });
 
-    const res = await createAgent().post('/api/auth/google').send({ credential: 'cred', ...ESCALATION_FIELDS });
+    const res = await createAgent().post('/api/auth/google').send({ credential: 'cred', ...GOOGLE_SIGNUP, ...ESCALATION_FIELDS });
     spy.mockRestore();
 
     expect(res.status).toBe(200);

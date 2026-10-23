@@ -51,6 +51,15 @@ const UserSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user'
   },
+  // Which version of the Terms + Privacy Policy this account agreed to, and
+  // when (services/legal.js). Null for accounts created before acceptance
+  // was recorded — they're asked on their next visit. Each acceptance is
+  // also written to the append-only AuditLog; that's the durable record,
+  // this is the fast per-request check.
+  termsAcceptance: {
+    version: { type: String, default: null },
+    acceptedAt: { type: Date, default: null }
+  },
   profile: {
     // Immutable: captured once at sign-up and never editable afterwards.
     fullName: {

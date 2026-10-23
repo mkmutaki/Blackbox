@@ -4,7 +4,7 @@
 // named (SEC-06, SEC-12, SEC-20) against the real middleware chain, not
 // just the schemas in isolation.
 const request = require('supertest');
-const { app, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD } = require('./helpers');
+const { app, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD, CURRENT_TERMS_VERSION } = require('./helpers');
 
 describe('NoSQL operator injection (SEC-06)', () => {
   it('rejects an object-shaped email on login instead of reaching the database filter', async () => {
@@ -16,7 +16,7 @@ describe('NoSQL operator injection (SEC-06)', () => {
   it('rejects an object-shaped email on register', async () => {
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
-      email: { $gt: '' }, password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01',
+      email: { $gt: '' }, password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
@@ -32,7 +32,7 @@ describe('oversized fields are rejected consistently (SEC-20)', () => {
   it('rejects a full name over 100 characters on register', async () => {
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
-      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'x'.repeat(101), dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'x'.repeat(101), dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
@@ -96,7 +96,7 @@ describe('prototype-pollution-shaped keys are stripped, not merged in (SEC-26 co
       email,
       password: VALID_PASSWORD,
       fullName: 'X',
-      dateOfBirth: '1990-01-01',
+      dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
       __proto__: { polluted: true },
     });
 

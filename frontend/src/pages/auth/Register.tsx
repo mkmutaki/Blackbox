@@ -11,7 +11,9 @@ import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { validatePasswordComposition } from '@/lib/passwordPolicy';
-import { MIN_AGE_YEARS, meetsMinimumAge } from '@/lib/agePolicy';
+import { MIN_AGE_YEARS, calculateAge, meetsMinimumAge } from '@/lib/agePolicy';
+import { CURRENT_TERMS_VERSION } from '@/lib/legal';
+import { TermsConsent } from '@/components/legal/TermsConsent';
 import { getErrorMessage } from '@/lib/errorMessage';
 
 type Step = 'initial' | 'name' | 'birthday' | 'email' | 'password';
@@ -36,6 +38,7 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,10 +170,15 @@ export default function Register() {
       return;
     }
 
+    if (!agreedToTerms) {
+      setError('Please accept the Terms of Service to create your account');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await register(email, password, fullName.trim(), dateOfBirth);
+      await register(email, password, fullName.trim(), dateOfBirth, CURRENT_TERMS_VERSION);
       toast({
         title: 'Account created successfully',
         description: 'Welcome to Blackbox!',
@@ -419,10 +427,17 @@ export default function Register() {
               </div>
             </div>
 
+            <TermsConsent
+              id="registerTerms"
+              checked={agreedToTerms}
+              onCheckedChange={setAgreedToTerms}
+              isMinor={Boolean(dateOfBirth) && calculateAge(new Date(dateOfBirth)) < 18}
+            />
+
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={isLoading || !agreedToTerms}
             >
               {isLoading ? 'Creating Account...' : 'Create Account'}
             </Button>

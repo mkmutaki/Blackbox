@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ProfileSetup } from '@/components/ProfileSetup';
+import { TermsAcceptanceGate } from '@/components/legal/TermsAcceptanceGate';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -24,6 +25,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (!isLoggedIn) {
     // Save the current location for redirection after login
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Nothing of the app until the account agrees to the current terms. The
+  // server blocks new recordings regardless (requireCurrentTerms).
+  if (user?.termsAcceptanceRequired) {
+    return <TermsAcceptanceGate />;
   }
 
   // Check if profile is complete

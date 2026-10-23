@@ -1,5 +1,5 @@
 const request = require('supertest');
-const { app, registerUser, createAgent, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, hibpService } = require('./helpers');
+const { app, registerUser, createAgent, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, hibpService, CURRENT_TERMS_VERSION, GOOGLE_SIGNUP } = require('./helpers');
 const googleAuthService = require('../services/googleAuth');
 
 describe('POST /api/auth/register', () => {
@@ -43,7 +43,7 @@ describe('POST /api/auth/register', () => {
   it('rejects a password under 8 characters', async () => {
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
-      email: uniqueEmail(), password: 'Sh0rt!', fullName: 'X', dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: 'Sh0rt!', fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
@@ -51,7 +51,7 @@ describe('POST /api/auth/register', () => {
   it('rejects a password missing an uppercase letter', async () => {
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
-      email: uniqueEmail(), password: 'lowercase1!', fullName: 'X', dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: 'lowercase1!', fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
@@ -59,7 +59,7 @@ describe('POST /api/auth/register', () => {
   it('rejects a password missing a digit', async () => {
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
-      email: uniqueEmail(), password: 'NoDigitsHere!', fullName: 'X', dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: 'NoDigitsHere!', fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
@@ -67,28 +67,28 @@ describe('POST /api/auth/register', () => {
   it('rejects a password missing a special character', async () => {
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
-      email: uniqueEmail(), password: 'NoSpecial123', fullName: 'X', dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: 'NoSpecial123', fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
 
   it('rejects a date of birth under the minimum age (SEC-19 data minimisation follow-up)', async () => {
-    const sevenYearsAgo = new Date();
-    sevenYearsAgo.setFullYear(sevenYearsAgo.getFullYear() - 7);
+    const twelveYearsAgo = new Date();
+    twelveYearsAgo.setFullYear(twelveYearsAgo.getFullYear() - 12);
 
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
       email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X',
-      dateOfBirth: sevenYearsAgo.toISOString().slice(0, 10),
+      dateOfBirth: twelveYearsAgo.toISOString().slice(0, 10), acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
 
   it('accepts a date of birth exactly at the minimum age', async () => {
-    const exactlyEight = new Date();
-    exactlyEight.setFullYear(exactlyEight.getFullYear() - 8);
+    const exactlyThirteen = new Date();
+    exactlyThirteen.setFullYear(exactlyThirteen.getFullYear() - 13);
 
-    const { res } = await registerUser({ dateOfBirth: exactlyEight.toISOString().slice(0, 10) });
+    const { res } = await registerUser({ dateOfBirth: exactlyThirteen.toISOString().slice(0, 10) });
     expect(res.status).toBe(201);
   });
 
@@ -97,7 +97,7 @@ describe('POST /api/auth/register', () => {
 
     const agent = createAgent();
     const res = await agent.post('/api/auth/register').send({
-      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
   });
@@ -110,7 +110,7 @@ describe('POST /api/auth/register', () => {
 
   it('is blocked by the CSRF check without an allowed Origin', async () => {
     const res = await request(app).post('/api/auth/register').send({
-      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(403);
   });
@@ -161,7 +161,7 @@ describe('POST /api/auth/google', () => {
     verifyGoogleToken.mockResolvedValue({ sub: 'google-sub-123', email, email_verified: true, name: 'Google User' });
 
     const agent = createAgent();
-    const res = await agent.post('/api/auth/google').send({ credential: 'fake-credential' });
+    const res = await agent.post('/api/auth/google').send({ credential: 'fake-credential', ...GOOGLE_SIGNUP });
 
     expect(res.status).toBe(200);
     expect(res.body.user.email).toBe(email);

@@ -10,3 +10,14 @@ export const getErrorMessage = (error: unknown, fallback: string): string => {
   }
   return fallback;
 };
+
+// The machine-readable `code` some responses carry alongside `error`
+// (e.g. SIGNUP_DETAILS_REQUIRED), for UI that branches on the kind of
+// failure rather than showing its message.
+export const getErrorCode = (error: unknown): string | undefined => {
+  if (error instanceof AxiosError) {
+    const data = error.response?.data as { code?: string } | undefined;
+    if (typeof data?.code === 'string') return data.code;
+  }
+  return undefined;
+};

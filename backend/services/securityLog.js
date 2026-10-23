@@ -6,7 +6,7 @@
 //
 // Named events: login_success, login_failure, password_change,
 // google_link_success, google_link_blocked_unverified, refresh_token_reuse,
-// account_deleted, admin_bootstrap.
+// account_deleted, admin_bootstrap, terms_accepted.
 //
 // `actor` is who performed the action (null when nobody authenticated did
 // — a failed login, a replayed token, the bootstrap script);

@@ -4,7 +4,7 @@
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const request = require('supertest');
-const { app, createAgent, registerUser, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User } = require('../helpers');
+const { app, createAgent, registerUser, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION } = require('../helpers');
 const { cookieFrom, withEnv, captureConsole } = require('./attackKit');
 const emailService = require('../../services/email');
 const googleAuthService = require('../../services/googleAuth');
@@ -188,7 +188,7 @@ describe('SEC-38: racing duplicate registrations', () => {
     const logs = captureConsole();
 
     const results = await Promise.all(Array.from({ length: 8 }, () =>
-      createAgent().post('/api/auth/register').send({ email, password: VALID_PASSWORD, fullName: 'Racer', dateOfBirth: '1990-01-01' })));
+      createAgent().post('/api/auth/register').send({ email, password: VALID_PASSWORD, fullName: 'Racer', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION })));
 
     logs.restore();
     const statuses = results.map((r) => r.status);

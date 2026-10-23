@@ -5,7 +5,7 @@
 // guarantee instead of a hope, and it's meant to keep failing loudly if a
 // future endpoint (admin panel included) ever leaks these fields.
 const request = require('supertest');
-const { app, createUserAndAgent, TEST_ORIGIN } = require('./helpers');
+const { app, createUserAndAgent, TEST_ORIGIN, CURRENT_TERMS_VERSION, GOOGLE_SIGNUP } = require('./helpers');
 
 const IV = 'aabbccddeeff00112233445566778899';
 const JWK_SECRET_MARKER = 'do-not-leak-this-key-material';
@@ -146,15 +146,16 @@ describe('key material invariant across every mounted route', () => {
     ['GET /api/videos/:id', (a, c) => a.get(`/api/videos/${c.videoId}`)],
     ['PATCH /api/videos/:id', (a, c) => a.patch(`/api/videos/${c.videoId}`).send({ title: 'Renamed' })],
     ['POST /api/auth/register', (a) => a.post('/api/auth/register').send({
-      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'New', dateOfBirth: '1990-01-01',
+      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'New', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     })],
     ['POST /api/auth/login', (a, c) => a.post('/api/auth/login').send({ email: c.email, password: c.password })],
-    ['POST /api/auth/google', (a) => a.post('/api/auth/google').send({ credential: 'cred' })],
+    ['POST /api/auth/google', (a) => a.post('/api/auth/google').send({ credential: 'cred', ...GOOGLE_SIGNUP })],
     ['POST /api/auth/refresh', (a) => a.post('/api/auth/refresh')],
     ['POST /api/auth/verify-email', (a) => a.post('/api/auth/verify-email').send({ token: 'bogus' })],
     ['POST /api/auth/request-password-reset', (a, c) => a.post('/api/auth/request-password-reset').send({ email: c.email })],
     ['POST /api/auth/reset-password', (a) => a.post('/api/auth/reset-password').send({ token: 'bogus', password: VALID_PASSWORD })],
     ['GET /api/auth/me', (a) => a.get('/api/auth/me')],
+    ['POST /api/auth/accept-terms', (a) => a.post('/api/auth/accept-terms').send({ acceptedTermsVersion: CURRENT_TERMS_VERSION })],
     ['GET /api/profile', (a) => a.get('/api/profile')],
     ['PUT /api/profile/update', (a) => a.put('/api/profile/update').send({ dateOfBirth: '1990-01-01' })],
     ['POST /api/profile/onboarding', (a) => a.post('/api/profile/onboarding').send({ username: 'probe' })],

@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../app');
 const User = require('../models/User');
 const hibpService = require('../services/hibp');
+const { CURRENT_TERMS_VERSION } = require('../services/legal');
 
 // Default for every test in every file that requires this helper (i.e. all
 // of them) — registration and password reset must not depend on a real
@@ -36,6 +37,10 @@ const createAgent = () => {
   return agent;
 };
 
+// What a brand-new Google identity has to send alongside its credential
+// before an account is created for it (SIGNUP_DETAILS_REQUIRED otherwise).
+const GOOGLE_SIGNUP = { dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION };
+
 const registerUser = async (overrides = {}) => {
   const agent = createAgent();
   const body = {
@@ -43,6 +48,7 @@ const registerUser = async (overrides = {}) => {
     password: VALID_PASSWORD,
     fullName: 'Test User',
     dateOfBirth: '1990-01-01',
+    acceptedTermsVersion: CURRENT_TERMS_VERSION,
     ...overrides,
   };
   const res = await agent.post('/api/auth/register').send(body);
@@ -63,6 +69,8 @@ module.exports = {
   createAgent,
   TEST_ORIGIN,
   VALID_PASSWORD,
+  CURRENT_TERMS_VERSION,
+  GOOGLE_SIGNUP,
   app,
   User,
   hibpService,

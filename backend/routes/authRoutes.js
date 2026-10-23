@@ -12,6 +12,7 @@ const {
   resetPassword,
   getCurrentUser,
   deleteAccount,
+  acceptTerms,
 } = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const { authIpLimiter, authAccountLimiter, refreshIpLimiter, deleteAccountLimiter } = require('../middleware/rateLimit');
@@ -28,11 +29,17 @@ const emailSchema = z.string().trim().toLowerCase().email().max(254);
 // length so an absurdly long password can't be used to pressure bcrypt.
 const passwordInputSchema = z.string().min(1).max(256);
 
+const dateOfBirthSchema = z.string().min(1).max(40);
+// Just a type/length pin — the controller compares it to the current
+// version and answers a mismatch with TERMS_ACCEPTANCE_REQUIRED.
+const termsVersionSchema = z.string().min(1).max(40);
+
 const registerSchema = z.object({
   email: emailSchema,
   password: passwordInputSchema,
   fullName: z.string().trim().min(1).max(100),
-  dateOfBirth: z.string().min(1),
+  dateOfBirth: dateOfBirthSchema,
+  acceptedTermsVersion: termsVersionSchema,
 });
 
 const loginSchema = z.object({
@@ -44,8 +51,16 @@ const loginSchema = z.object({
 // being parsed (and previously, logged) on every attempt.
 const googleCredentialSchema = z.string().min(1).max(4096);
 
+// dateOfBirth/acceptedTermsVersion are only needed when this credential
+// would create a new account; signing in to an existing one ignores them.
 const googleSchema = z.object({
   credential: googleCredentialSchema,
+  dateOfBirth: dateOfBirthSchema.optional(),
+  acceptedTermsVersion: termsVersionSchema.optional(),
+});
+
+const acceptTermsSchema = z.object({
+  acceptedTermsVersion: termsVersionSchema,
 });
 
 const verifyEmailSchema = z.object({
@@ -77,8 +92,11 @@ router.post('/register', authIpLimiter, validate(registerSchema), authAccountLim
 // Login a user
 router.post('/login', authIpLimiter, validate(loginSchema), authAccountLimiter, login);
 
-// Authenticate (or register) a user via Google
-router.post('/google', authIpLimiter, validate(googleSchema), authAccountLimiter, googleAuth);
+// Authenticate (or register) a user via Google. IP limit only: the body has
+// no email to key a per-account limit on (it would fall back to IP at the
+// account limit's 5 per 15 minutes, shared by everyone behind that IP), and
+// a Google-signed credential can't be guessed anyway.
+router.post('/google', authIpLimiter, validate(googleSchema), googleAuth);
 
 // Server-side logout — revokes the refresh-token family, clears cookies
 router.post('/logout', logout);
@@ -99,6 +117,10 @@ router.post('/reset-password', authIpLimiter, validate(resetPasswordSchema), res
 
 // Get current user (protected route)
 router.get('/me', authMiddleware, getCurrentUser);
+
+// Record that the signed-in user agreed to the current Terms + Privacy
+// Policy — for accounts that predate acceptance, or after a material change.
+router.post('/accept-terms', authMiddleware, validate(acceptTermsSchema), acceptTerms);
 
 // Permanently delete the caller's own account — requires re-authentication
 // (password, or a fresh Google credential for Google accounts), enforced

@@ -3,7 +3,7 @@
 // fails; the SEC id names the fix in SECURITY_AUDIT.md.
 const crypto = require('node:crypto');
 const request = require('supertest');
-const { app, createAgent, createUserAndAgent, registerUser, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User } = require('../helpers');
+const { app, createAgent, createUserAndAgent, registerUser, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION } = require('../helpers');
 const { presignAndUpload, finalize, cookieFrom, withEnv, captureConsole } = require('./attackKit');
 const Video = require('../../models/Video');
 const RefreshToken = require('../../models/RefreshToken');
@@ -51,15 +51,18 @@ describe('SEC-34: endpoints that write documents are not an unbounded write prim
     expect(results.map((r) => r.body.entryNumber).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
+  // Mirrors refreshIpLimiter in middleware/rateLimit.js.
+  const REFRESH_LIMIT = 300;
+
   it('/refresh is rate limited per IP', async () => {
     await withLimitsOn(async () => {
       const ip = freshIp();
       const statuses = [];
-      for (let i = 0; i < 101; i++) {
+      for (let i = 0; i <= REFRESH_LIMIT; i++) {
         statuses.push((await request(app).post('/api/auth/refresh').set('Origin', TEST_ORIGIN).set('X-Forwarded-For', ip)).status);
       }
-      expect(statuses.slice(0, 100).every((s) => s === 401)).toBe(true);
-      expect(statuses[100]).toBe(429);
+      expect(statuses.slice(0, REFRESH_LIMIT).every((s) => s === 401)).toBe(true);
+      expect(statuses[REFRESH_LIMIT]).toBe(429);
     });
   });
 
@@ -72,15 +75,15 @@ describe('SEC-34: endpoints that write documents are not an unbounded write prim
       // Cookies become Secure outside the test env and supertest won't send
       // those over http, so carry the rotating token by hand.
       let raw = cookieFrom(await agent.post('/api/auth/refresh'), 'refreshToken');
-      for (let i = 0; i < 110; i++) {
+      for (let i = 0; i < REFRESH_LIMIT + 10; i++) {
         const res = await request(app).post('/api/auth/refresh')
           .set('Origin', TEST_ORIGIN).set('X-Forwarded-For', ip).set('Cookie', `refreshToken=${raw}`);
         if (res.status === 200) raw = cookieFrom(res, 'refreshToken');
       }
     });
 
-    // 1 from register + 1 from the warm-up refresh + at most 100 limited ones.
-    expect(await RefreshToken.countDocuments({ userId: user._id })).toBeLessThanOrEqual(102);
+    // 1 from register + 1 from the warm-up refresh + at most REFRESH_LIMIT limited ones.
+    expect(await RefreshToken.countDocuments({ userId: user._id })).toBeLessThanOrEqual(REFRESH_LIMIT + 2);
   });
 
   it('/finalize is rate limited per account', async () => {
@@ -181,7 +184,7 @@ describe('SEC-40: finalize accepts only the exact key shape the server issued', 
 
 describe('SEC-39: passwords bcrypt would silently truncate are refused', () => {
   const register = (password) => createAgent().post('/api/auth/register')
-    .send({ email: uniqueEmail(), password, fullName: 'Long', dateOfBirth: '1990-01-01' });
+    .send({ email: uniqueEmail(), password, fullName: 'Long', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION });
 
   it('accepts exactly 72 bytes and refuses 73', async () => {
     const base = 'Aa1!';

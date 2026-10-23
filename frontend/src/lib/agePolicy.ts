@@ -1,7 +1,7 @@
 // Mirrors backend/services/agePolicy.js — kept in sync manually since the
 // two apps don't share a package. This is the client-side pre-check only;
 // the server is the one that actually enforces it.
-export const MIN_AGE_YEARS = 8;
+export const MIN_AGE_YEARS = 13;
 
 // Month/day-aware, not a bare year subtraction — someone born late in the
 // calendar year would otherwise be overcounted by nearly a full year until

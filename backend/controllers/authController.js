@@ -8,6 +8,12 @@ const { generateRawToken, hashToken } = require('../services/tokens');
 const { validatePassword } = require('../services/passwordPolicy');
 const { meetsMinimumAge, MIN_AGE_YEARS } = require('../services/agePolicy');
 const { deleteUserAccount } = require('../services/accountDeletion');
+const {
+  CURRENT_TERMS_VERSION,
+  TERMS_ACCEPTANCE_REQUIRED,
+  SIGNUP_DETAILS_REQUIRED,
+  recordTermsAcceptance,
+} = require('../services/legal');
 const { logSecurityEvent } = require('../services/securityLog');
 // Not destructured — tests spy on this module's own methods (vi.spyOn), the
 // same reason services/googleAuth.js is referenced this way: a destructured
@@ -39,6 +45,39 @@ const logError = (label, error) => {
 const DUPLICATE_KEY = 11000;
 const REGISTRATION_FAILED = 'Unable to complete registration. If you already have an account, try signing in instead.';
 
+// Sent when the version a client agreed to isn't the current one — almost
+// always a tab opened before the terms changed.
+const TERMS_OUTDATED = {
+  error: 'The Terms of Service or Privacy Policy changed since this page loaded. Reload to review and accept the current version.',
+  code: TERMS_ACCEPTANCE_REQUIRED,
+};
+
+// Shared by email and Google sign-up: the parsed date, or the error to send.
+const parseDateOfBirth = (dateOfBirth) => {
+  const birthDate = new Date(dateOfBirth);
+  if (isNaN(birthDate.getTime())) {
+    return { error: 'Invalid date of birth' };
+  }
+  if (birthDate > new Date()) {
+    return { error: 'Date of birth cannot be in the future' };
+  }
+  if (!meetsMinimumAge(birthDate)) {
+    return { error: `You must be at least ${MIN_AGE_YEARS} years old to use Blackbox` };
+  }
+  return { birthDate };
+};
+
+// The AuditLog entry is the durable proof of acceptance: append-only, and
+// it outlives the user document.
+const logTermsAccepted = (user, req, via) =>
+  logSecurityEvent('terms_accepted', {
+    actor: user._id,
+    targetType: 'user',
+    targetId: user._id,
+    ip: req.ip,
+    meta: { version: user.termsAcceptance.version, via },
+  });
+
 const issueRefreshToken = async (user, familyId) => {
   const rawToken = generateRawToken();
   await RefreshToken.create({
@@ -68,19 +107,15 @@ const register = async (req, res) => {
     // Presence, type and length are already enforced by the registerSchema
     // validate() middleware in authRoutes.js — only date-of-birth semantics
     // and password composition need checking here.
-    const { email, password, fullName, dateOfBirth } = req.body;
+    const { email, password, fullName, dateOfBirth, acceptedTermsVersion } = req.body;
 
-    const birthDate = new Date(dateOfBirth);
-    if (isNaN(birthDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date of birth' });
+    if (acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+      return res.status(400).json(TERMS_OUTDATED);
     }
 
-    if (birthDate > new Date()) {
-      return res.status(400).json({ error: 'Date of birth cannot be in the future' });
-    }
-
-    if (!meetsMinimumAge(birthDate)) {
-      return res.status(400).json({ error: `You must be at least ${MIN_AGE_YEARS} years old to use Blackbox` });
+    const { birthDate, error: birthDateError } = parseDateOfBirth(dateOfBirth);
+    if (birthDateError) {
+      return res.status(400).json({ error: birthDateError });
     }
 
     const passwordError = await validatePassword(password);
@@ -108,7 +143,9 @@ const register = async (req, res) => {
         onboardingComplete: false
       }
     });
+    recordTermsAcceptance(user);
     await user.save();
+    await logTermsAccepted(user, req, 'register');
 
     const rawVerifyToken = generateRawToken();
     await ActionToken.create({
@@ -175,7 +212,7 @@ const login = async (req, res) => {
 // @access  Public
 const googleAuth = async (req, res) => {
   try {
-    const { credential } = req.body;
+    const { credential, dateOfBirth, acceptedTermsVersion } = req.body;
 
     if (!credential) {
       return res.status(400).json({ error: 'Missing Google credential' });
@@ -230,6 +267,25 @@ const googleAuth = async (req, res) => {
         user = existingLocal;
         await logSecurityEvent('google_link_success', { actor: user._id, targetType: 'user', targetId: user._id, ip: req.ip, meta: { email } });
       } else {
+        // Nothing is stored for a new Google identity until it has the two
+        // things email registration requires up front: a date of birth that
+        // meets the minimum age, and agreement to the current terms. The
+        // frontend answers this code with that form, then resends the same
+        // credential (Google ID tokens stay valid for about an hour).
+        if (!dateOfBirth || !acceptedTermsVersion) {
+          return res.status(403).json({
+            error: 'Confirm your date of birth and accept the Terms to finish creating your account.',
+            code: SIGNUP_DETAILS_REQUIRED,
+          });
+        }
+        if (acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+          return res.status(400).json(TERMS_OUTDATED);
+        }
+        const { birthDate, error: birthDateError } = parseDateOfBirth(dateOfBirth);
+        if (birthDateError) {
+          return res.status(400).json({ error: birthDateError });
+        }
+
         const googleName = name || email.split('@')[0];
         user = new User({
           email,
@@ -239,10 +295,14 @@ const googleAuth = async (req, res) => {
           profile: {
             fullName: googleName,
             username: googleName,
+            dateOfBirth: birthDate,
+            isProfileComplete: true,
             onboardingComplete: false
           }
         });
+        recordTermsAcceptance(user);
         await user.save();
+        await logTermsAccepted(user, req, 'google_signup');
       }
     }
 
@@ -478,6 +538,40 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+// @route   POST /api/auth/accept-terms
+// @desc    Record the signed-in user's agreement to the current terms
+// @access  Private
+const acceptTerms = async (req, res) => {
+  try {
+    if (req.body.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+      return res.status(400).json(TERMS_OUTDATED);
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Accounts created while the minimum age was lower can't take on terms
+    // that require 13+. They stay blocked from recording (requireCurrentTerms)
+    // rather than being deleted automatically — removing someone's data is
+    // the operator's call, not a side effect of a button.
+    const birthDate = user.profile?.dateOfBirth;
+    if (birthDate && !meetsMinimumAge(birthDate)) {
+      return res.status(403).json({ error: `Blackbox is only available to people ${MIN_AGE_YEARS} and older.` });
+    }
+
+    recordTermsAcceptance(user);
+    await user.save();
+    await logTermsAccepted(user, req, 'prompt');
+
+    res.json({ user: toSafeUser(user) });
+  } catch (error) {
+    logError('Accept terms error', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 // @route   DELETE /api/auth/account
 // @desc    Permanently delete the caller's own account: videos, S3
 //          objects, tokens and profile. Requires re-proving control of the
@@ -554,4 +648,5 @@ module.exports = {
   resetPassword,
   getCurrentUser,
   deleteAccount,
+  acceptTerms,
 };

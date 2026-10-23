@@ -3,7 +3,7 @@
 // account deletion — redacting tokens/passwords/jwk/full emails.
 const request = require('supertest');
 const { logSecurityEvent, maskEmail } = require('../services/securityLog');
-const { app, registerUser, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User } = require('./helpers');
+const { app, registerUser, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION } = require('./helpers');
 const emailService = require('../services/email');
 const googleAuthService = require('../services/googleAuth');
 
@@ -79,7 +79,7 @@ describe('security events wired into real auth flows', () => {
   it('logs google_link_blocked_unverified and google_link_success', async () => {
     const email = uniqueEmail('linktest');
     await createAgent().post('/api/auth/register').send({
-      email, password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01',
+      email, password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
 
     const verifyGoogleToken = vi.spyOn(googleAuthService, 'verifyGoogleToken');

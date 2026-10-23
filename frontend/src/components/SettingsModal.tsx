@@ -7,10 +7,13 @@ import {
   MapPin,
   Lock,
   ArrowLeftRight,
+  Scale,
   type LucideIcon,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ProfileSettings } from '@/components/ProfileSettings';
+import { CONTACT_EMAIL, LEGAL_LINKS } from '@/lib/legal';
 import { cn } from '@/lib/utils';
 
 interface SettingsModalProps {
@@ -25,6 +28,11 @@ interface SettingsSection {
   description: string;
 }
 
+// Several placeholders below would break promises in the published legal
+// pages (pages/legal/) once built: AI Assistant (no analysis or AI use of
+// recordings), Your places (no location), Import & export (says there's no
+// download yet). Update the policy first, and bump CURRENT_TERMS_VERSION if
+// the change is material.
 const SECTIONS: SettingsSection[] = [
   {
     id: 'profile',
@@ -67,6 +75,12 @@ const SECTIONS: SettingsSection[] = [
     label: 'Import & export',
     icon: ArrowLeftRight,
     description: 'Import existing data or export your entries.',
+  },
+  {
+    id: 'legal',
+    label: 'Privacy & legal',
+    icon: Scale,
+    description: 'The terms you agreed to, and how your information is handled.',
   },
 ];
 
@@ -119,6 +133,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="mt-6">
               {activeSection.id === 'profile' ? (
                 <ProfileSettings />
+              ) : activeSection.id === 'legal' ? (
+                <LegalSection />
               ) : (
                 <PlaceholderSection label={activeSection.label} />
               )}
@@ -127,6 +143,26 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function LegalSection() {
+  return (
+    <div className="space-y-4 text-sm">
+      <ul className="space-y-2">
+        {LEGAL_LINKS.map(({ to, label }) => (
+          <li key={to}>
+            <Link to={to} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+              {label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground">
+        Questions, or want a copy of your data? Email{' '}
+        <a href={`mailto:${CONTACT_EMAIL}`} className="text-accent hover:underline">{CONTACT_EMAIL}</a>.
+      </p>
+    </div>
   );
 }
 

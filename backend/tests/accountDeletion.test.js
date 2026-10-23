@@ -1,7 +1,7 @@
 // SECURITY_HARDENING_PROMPT.md §5.G (SEC-19) + §6.5: account deletion as a
 // reusable, idempotent cascade-delete service, gated behind re-authentication.
 const request = require('supertest');
-const { app, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD, User } = require('./helpers');
+const { app, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD, User, GOOGLE_SIGNUP } = require('./helpers');
 const { deleteUserAccount } = require('../services/accountDeletion');
 const s3 = require('../services/s3Client');
 const Video = require('../models/Video');
@@ -161,7 +161,7 @@ describe('DELETE /api/auth/account (Google accounts)', () => {
     const email = uniqueEmail('google');
     verifyGoogleToken.mockResolvedValueOnce({ sub: 'google-sub-del', email, email_verified: true, name: 'G User' });
     const agent = createAgent();
-    const res = await agent.post('/api/auth/google').send({ credential: 'fake-credential' });
+    const res = await agent.post('/api/auth/google').send({ credential: 'fake-credential', ...GOOGLE_SIGNUP });
     return { agent, email, user: res.body.user };
   };
 

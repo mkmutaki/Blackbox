@@ -10,6 +10,7 @@ const {
   deleteVideo,
 } = require('../controllers/videoController');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const { requireCurrentTerms } = require('../middleware/requireCurrentTerms');
 const {
   presignIpLimiter,
   presignAccountLimiter,
@@ -39,8 +40,10 @@ const patchTitleSchema = z.object({
 // Apply auth middleware to all video routes
 router.use(authMiddleware);
 
-router.post('/presign', presignIpLimiter, presignAccountLimiter, presign);
-router.post('/finalize', finalizeIpLimiter, finalizeAccountLimiter, validate(finalizeSchema), finalize);
+// Only the two routes that take in a new recording need current terms —
+// reading, renaming and deleting existing entries never do.
+router.post('/presign', presignIpLimiter, presignAccountLimiter, requireCurrentTerms, presign);
+router.post('/finalize', finalizeIpLimiter, finalizeAccountLimiter, requireCurrentTerms, validate(finalizeSchema), finalize);
 router.get('/', listVideos);
 router.get('/:id', objectIdParam('id'), getVideo);
 router.patch('/:id', objectIdParam('id'), validate(patchTitleSchema), updateVideoTitle);

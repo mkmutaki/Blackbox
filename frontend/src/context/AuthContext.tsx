@@ -8,6 +8,9 @@ type User = {
   email: string;
   authProvider: 'local' | 'google';
   createdAt: string;
+  // True until the account has agreed to the current Terms + Privacy
+  // Policy; the app shows TermsAcceptanceGate instead of itself meanwhile.
+  termsAcceptanceRequired?: boolean;
   profile?: {
     fullName?: string;
     username?: string;
@@ -16,6 +19,13 @@ type User = {
     onboardingComplete?: boolean;
     isProfileComplete: boolean;
   };
+};
+
+// Sent with a Google credential that would create a new account — the
+// server answers SIGNUP_DETAILS_REQUIRED without it and stores nothing.
+export type GoogleSignupDetails = {
+  dateOfBirth: string;
+  acceptedTermsVersion: string;
 };
 
 export type OnboardingAnswers = {
@@ -28,8 +38,9 @@ type AuthContextType = {
   isLoading: boolean;
   isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (email: string, password: string, fullName: string, dateOfBirth: string) => Promise<void>;
-  loginWithGoogle: (credential: string) => Promise<void>;
+  register: (email: string, password: string, fullName: string, dateOfBirth: string, acceptedTermsVersion: string) => Promise<void>;
+  loginWithGoogle: (credential: string, signup?: GoogleSignupDetails) => Promise<void>;
+  acceptTerms: (acceptedTermsVersion: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (profileData: { username?: string; dateOfBirth: string }) => Promise<void>;
   completeOnboarding: (answers: OnboardingAnswers) => Promise<void>;
@@ -79,7 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Register user
-  const register = async (email: string, password: string, fullName: string, dateOfBirth: string) => {
+  const register = async (email: string, password: string, fullName: string, dateOfBirth: string, acceptedTermsVersion: string) => {
     setIsLoading(true);
     setError(null);
 
@@ -88,7 +99,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         email,
         password,
         fullName,
-        dateOfBirth
+        dateOfBirth,
+        acceptedTermsVersion
       });
 
       setUser(res.data.user);
@@ -129,12 +141,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Login or register via a Google ID token credential
-  const loginWithGoogle = async (credential: string) => {
+  const loginWithGoogle = async (credential: string, signup?: GoogleSignupDetails) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const res = await api.post('/auth/google', { credential });
+      const res = await api.post('/auth/google', { credential, ...signup });
 
       setUser(res.data.user);
       setIsLoggedIn(true);
@@ -181,6 +193,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Record agreement to the current Terms + Privacy Policy. Re-throws so
+  // the prompt can show the server's specific reason (e.g. an account
+  // under the minimum age) instead of the shared `error` banner.
+  const acceptTerms = async (acceptedTermsVersion: string) => {
+    const res = await api.post('/auth/accept-terms', { acceptedTermsVersion });
+    setUser(res.data.user);
+  };
+
   // Save onboarding answers and mark the flow as finished
   const completeOnboarding = async (answers: OnboardingAnswers) => {
     setError(null);
@@ -214,6 +234,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         loginWithGoogle,
+        acceptTerms,
         logout,
         updateProfile,
         completeOnboarding,
