@@ -1,10 +1,10 @@
-# Blackbox — Security Audit (Phase 1)
+# Blackbox — Security Audit
 
-Produced per `SECURITY_HARDENING_PROMPT.md` §4. This is a point-in-time audit
-of the working tree on branch `security_hardening`, after Phase 0 (test
-safety net) but before any Phase 2 remediation. **No fixes are included in
-this document or this phase** — per the governing prompt, this is where work
-stops and waits for approval.
+Produced per `SECURITY_HARDENING_PROMPT.md`. Started as the Phase 1 audit;
+each finding's detail section below keeps its original write-up, with a
+**Status** line added as fixes landed. Phases 3 and 4 are recorded near the
+end. **The Phase 5 final report is the last section**: what changed,
+what the owner must do, and what is still open.
 
 **Threat model** (full detail in the prompt §1; restated briefly for
 context): an unauthenticated attacker with only the public frontend/API; an
@@ -31,55 +31,61 @@ than taken at face value. Findings SEC-24 through SEC-30 are new this pass.
 
 ## Summary table (sorted by severity)
 
-Status as of Group H (dependencies & CI) landing — Groups A-H are all now
-in. "Partial" means part of the finding is resolved and the rest is
-explicitly scoped to later work — see that finding's detail section for
-exactly what's left. Phase 3 (admin-panel readiness) has also landed — see the section at the end.
+Status as of Phase 5 (2026-10-23). Statuses: **Fixed**, **Mitigated**
+(exposure reduced, remainder deliberately deferred), **Accepted risk**
+(owner decision, reasoning in the detail section), **Needs owner action**
+(the code side is done or impossible; the rest is infrastructure), and
+**Open** (not started). The phase commits (`0620fd9` Groups A–C,
+`603e343` D, `b5fe1e7` E–F, `8187e37` G, `04f705a` H) each bundle many
+findings, so the commit column names where the change landed rather than a
+one-finding commit.
 
-| ID | Severity | Status | Location | Finding |
+| ID | Severity | Status | Commit | Finding |
 |---|---|---|---|---|
-| SEC-01 | **Critical** | ✅ Fixed | `backend/controllers/authController.js:114-160` | Google-linking account takeover |
-| SEC-02 | **Critical** | ✅ Fixed | `frontend/index.html:28` | Third-party script on every page, including auth pages |
-| SEC-06 | High | ✅ Fixed | `backend/controllers/authController.js:28,80` | NoSQL operator injection via `email` |
-| SEC-26 | High | ✅ Fixed | `backend/package.json` (mongoose) | Mongoose CVEs: `$nor` sanitizeFilter bypass + prototype pollution |
-| SEC-03 | High | ✅ Fixed | `backend/middleware/authMiddleware.js:16`; `authController.js` | Session model: long-lived localStorage JWT, no revocation |
-| SEC-25 | High | ✅ Fixed | `backend/package.json` (jsonwebtoken) | `jws` HMAC-verification CVE under your own session-token library |
-| SEC-04 | High | ✅ Fixed | `backend/routes/videoRoutes.js:8-10` | Unbounded upload (no multer size limit) |
-| SEC-05 | High | ✅ Fixed | `backend/app.js` / `server.js` (absent) | No rate limiting, no `trust proxy` |
-| SEC-27 | High | ✅ Fixed | `backend/package.json` (express transitive) | `path-to-regexp` DoS + `body-parser` DoS CVEs |
-| SEC-07 | High | ✅ Fixed | `backend/controllers/authController.js:13` | No password policy |
-| SEC-24 | High | ✅ Not reproduced | `frontend/package.json` (react-router-dom) | Open-redirect CVEs, ships in the production bundle |
-| SEC-31 | High | ✅ Fixed | root `package.json` `workspaces` field (removed) | `npm install`/`npm ci` run inside `frontend/` or `backend/` silently resolves against the root workspace instead, corrupting the wrong lockfile |
-| SEC-41 | High | 🟧 Needs owner action | `backend/middleware/csrf.js` (`PROD_ORIGINS`) | Trusted origin `https://mkmutaki.github.io` is shared with seven other GitHub Pages sites, one loading an unpinned third-party script |
-| SEC-42 | High | 🟧 Accepted risk (owner decision) | `authController.js` (`googleAuth`, `verifyEmail`); `frontend/src/pages/auth/VerifyEmail.tsx` | Pre-registered account becomes linkable if the real owner opens its verification link |
-| SEC-08 | Medium | ✅ Fixed | `frontend/package.json:58` | Dead `mongodb` dependency (the credential-leak file is already gone) |
-| SEC-09 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:40` | Client filename interpolated into S3 key |
-| SEC-10 | Medium | 🟧 Accepted risk (Phase 4) | `backend/controllers/authController.js` (`register`) | Account enumeration on register — the message is generic but the status code still differs (400 vs 201) |
-| SEC-11 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:88,124` | Signed GET URLs valid for 1 hour |
-| SEC-12 | Medium | ✅ Fixed | `backend/routes/videoRoutes.js:115,157,179` | Invalid ObjectId → 500 instead of 400/404 |
-| SEC-13 | Medium | ✅ Fixed | `backend/controllers/profileController.js:39,61,113` | Raw documents returned, leaking `googleId` |
-| SEC-14 | Medium | ✅ Fixed | `backend/server.js` | Server survives a failed DB connection; no env-var validation |
-| SEC-15 | Medium | ✅ Fixed | `backend/app.js:11-19`; `frontend/src/services/api.ts:21` | Loose CORS/helmet defaults; API URL logged to console |
-| SEC-16 | Medium | ✅ Fixed | `backend/package.json`; `frontend/package.json` | EOL dependencies (aws-sdk v2, multer 1.x, `crypto` placeholder); dual lockfiles |
-| SEC-17 | Medium | ✅ Fixed | `landing/index.html:64`; `Landing.tsx:16,127`; `README.md` | Marketing copy claims E2EE the app doesn't implement |
-| SEC-18 | Medium | ✅ Resolved | `backend/models/User.js:78` | bcrypt cost factor 10 |
-| SEC-19 | Medium | ✅ Fixed | `backend/services/accountDeletion.js` | No account deletion capability |
-| SEC-28 | Medium | 🟨 Partial | `frontend/package.json` (dev toolchain) | Frontend audit findings; vite dev-server CVEs are the actionable ones |
-| SEC-32 | Medium | ✅ Fixed (Phase 4) | `backend/services/email.js` | Email stub wrote live reset/verification links and full addresses to the host's logs |
-| SEC-33 | Medium | ✅ Fixed (Phase 4) | `backend/middleware/authMiddleware.js`; `services/jwt.js` | Access token stayed valid for up to 15 minutes after logout |
-| SEC-34 | Medium | ✅ Fixed (Phase 4) | `routes/authRoutes.js` (`/refresh`); `routes/videoRoutes.js` (`/finalize`); `models/Video.js` | Unthrottled endpoints that each write a document; finalize replayable on one upload |
-| SEC-20 | Low | ✅ Fixed | `profileController.js` vs `videoRoutes.js` | Inconsistent input length limits |
-| SEC-21 | Low | ✅ Fixed | `backend/routes/videoRoutes.js:49-54` | `entryNumber` race on concurrent uploads |
-| SEC-22 | Low | ✅ Fixed | `backend/routes/videoRoutes.js:61` | Unvalidated `JSON.parse(jwk)` → 500 |
-| SEC-23 | Low | ✅ Fixed | `vite.config.ts`; `README.md:10-15`; root `package.json:11` | Dev/scaffold leftovers (Lovable, fake demo creds, dead script) |
-| SEC-29 | Low | ✅ Fixed | `backend/app.js:29-37` | Unauthenticated debug route added by Phase 0 test infra |
-| SEC-30 | Low | ⬜ Open | `.gitignore` | `.env` ignore pattern is path-specific, not a wildcard |
-| SEC-35 | Low | ✅ Fixed (Phase 4) | `authController.js` (`login`); `models/User.js` | Login timing revealed whether an email is registered |
-| SEC-36 | Low | ✅ Fixed (Phase 4) | `authController.js` (`googleAuth`) | Google verification errors logged the submitted token and payload (email); log injection |
-| SEC-37 | Low | ✅ Fixed (Phase 4) | `backend/app.js` (error handler); `services/cookies.js` | Malformed/oversized JSON and `j:` cookies produced 500s |
-| SEC-38 | Low | ✅ Fixed (Phase 4) | `authController.js` (`register` and catch blocks) | Duplicate-registration race returned 500 and logged the full email |
-| SEC-39 | Low | ✅ Fixed (Phase 4) | `services/passwordPolicy.js`; `frontend/src/lib/passwordPolicy.ts` | Passwords over 72 bytes silently truncated by bcrypt |
-| SEC-40 | Low | ✅ Fixed (Phase 4) | `services/videoService.js` (`isOwnUploadKey`) | Finalize ownership check was prefix-only |
+| SEC-01 | **Critical** | ✅ Fixed | `603e343` | Google-linking account takeover |
+| SEC-02 | **Critical** | ✅ Fixed | `b5fe1e7` | Third-party script on every page, including auth pages |
+| SEC-03 | High | ✅ Fixed | `603e343`, `3a8cb3f` | Session model: long-lived localStorage JWT, no revocation |
+| SEC-04 | High | ✅ Fixed | `0620fd9` | Unbounded upload (no multer size limit) |
+| SEC-05 | High | ✅ Fixed | `603e343`, `72655a0`, `085c50c` | No rate limiting, no `trust proxy` (client-IP resolution corrected for Render + Cloudflare later) |
+| SEC-06 | High | ✅ Fixed | `b5fe1e7` | NoSQL operator injection via `email` |
+| SEC-07 | High | ✅ Fixed | `603e343` | No password policy |
+| SEC-24 | High | 🟧 Accepted risk | — | react-router open-redirect advisories. Not reproduced: the app never navigates to an attacker-controlled path. Upgrade still recommended |
+| SEC-25 | High | ✅ Fixed | `04f705a` | `jws` HMAC-verification CVE under the session-token library |
+| SEC-26 | High | ✅ Fixed | `04f705a` | Mongoose CVEs: `$nor` sanitizeFilter bypass + prototype pollution |
+| SEC-27 | High | ✅ Fixed | `04f705a` | `path-to-regexp` + `body-parser` DoS CVEs |
+| SEC-31 | High | ✅ Fixed | `6b49e4c` | Root `workspaces` field made npm write the wrong lockfile |
+| SEC-41 | High | 🟥 Needs owner action | — | Trusted origin `mkmutaki.github.io` is shared with seven other Pages sites. Closed by the custom domain |
+| SEC-42 | High | 🟧 Accepted risk | — | Pre-registered account becomes linkable if the real owner opens its verification link |
+| SEC-08 | Medium | ✅ Fixed | `371e56b` | `mongodb` in the frontend (credential file and dependency both gone) |
+| SEC-09 | Medium | ✅ Fixed | `0620fd9` | Client filename interpolated into S3 key |
+| SEC-10 | Medium | 🟧 Accepted risk | — | Register enumeration via status code (400 vs 201); closable once email is wired |
+| SEC-11 | Medium | ✅ Fixed | `0620fd9` | Signed GET URLs valid for 1 hour |
+| SEC-12 | Medium | ✅ Fixed | `b5fe1e7` | Invalid ObjectId → 500 instead of 400/404 |
+| SEC-13 | Medium | ✅ Fixed | `b5fe1e7` | Raw documents returned, leaking `googleId` |
+| SEC-14 | Medium | ✅ Fixed | `0620fd9`, `b5fe1e7` | Server survives a failed DB connection; no env-var validation |
+| SEC-15 | Medium | ✅ Fixed | `603e343`, `b5fe1e7` | Loose CORS/helmet defaults; API URL logged to console |
+| SEC-16 | Medium | ✅ Fixed | `371e56b`, `0620fd9` | EOL dependencies (aws-sdk v2, multer 1.x, `crypto` placeholder); dual lockfiles |
+| SEC-17 | Medium | ✅ Fixed | `0620fd9`, `d48aa8b` | Marketing copy claims E2EE the app doesn't implement |
+| SEC-18 | Medium | 🟧 Accepted risk | — | bcrypt cost 10 (meets the revised spec of ≥ 8) |
+| SEC-19 | Medium | ✅ Fixed | `8187e37`, `c1574eb` | No account deletion capability |
+| SEC-28 | Medium | 🟨 Mitigated | `04f705a` | Frontend dev-toolchain advisories; remainder blocked on Tailwind v4 |
+| SEC-32 | Medium | ✅ Fixed | `fb153fe` | Email stub wrote live reset links and full addresses to logs |
+| SEC-33 | Medium | ✅ Fixed | `3a8cb3f` | Access token stayed valid for up to 15 minutes after logout |
+| SEC-34 | Medium | ✅ Fixed | `8be3c6d` | Unthrottled document-writing endpoints; finalize replayable |
+| SEC-20 | Low | ✅ Fixed | `b5fe1e7` | Inconsistent input length limits |
+| SEC-21 | Low | ✅ Fixed | `0620fd9` | `entryNumber` race on concurrent uploads |
+| SEC-22 | Low | ✅ Fixed | `b5fe1e7` | Unvalidated `JSON.parse(jwk)` → 500 |
+| SEC-23 | Low | ✅ Fixed | `b5fe1e7` | Dev/scaffold leftovers (README demo table kept by owner request) |
+| SEC-29 | Low | ✅ Fixed | `0620fd9` | Unauthenticated debug route added by Phase 0 test infra |
+| SEC-30 | Low | ⬜ Open | — | `.gitignore` `.env` pattern is path-specific, not a wildcard |
+| SEC-35 | Low | ✅ Fixed | `3a8cb3f` | Login timing revealed whether an email is registered |
+| SEC-36 | Low | ✅ Fixed | `3a8cb3f` | Google verification errors logged the token and payload; log injection |
+| SEC-37 | Low | ✅ Fixed | `ce6d16f` | Malformed/oversized JSON and `j:` cookies produced 500s |
+| SEC-38 | Low | ✅ Fixed | `3a8cb3f` | Duplicate-registration race returned 500 and logged the full email |
+| SEC-39 | Low | ✅ Fixed | `3a8cb3f` | Passwords over 72 bytes silently truncated by bcrypt |
+| SEC-40 | Low | ✅ Fixed | `8be3c6d` | Finalize ownership check was prefix-only |
+
+Totals: 35 Fixed, 1 Mitigated, 4 Accepted risk, 1 Needs owner action, 1 Open (42 findings).
 
 **New in Group D, not in the original audit:**
 - Email verification (`User.emailVerified`, `ActionToken` model, `/auth/verify-email`) and a password reset flow (`/auth/request-password-reset`, `/auth/reset-password`) now exist. **Email delivery is stubbed** — `backend/services/email.js` logs the verification/reset link to the server console instead of sending it (no provider was selected; see `SECURITY.md`). Nobody can self-serve either flow in production until a real provider is wired in.
@@ -93,7 +99,7 @@ exactly what's left. Phase 3 (admin-panel readiness) has also landed — see the
 - A production-only CSP `<meta>` tag is now baked into the built `frontend/index.html` by a small Vite plugin (`frontend/vite.config.ts`'s `injectProductionCSP`) — active today even on GitHub Pages, unlike a headers file. `frontend/vercel.json` additionally exists for the planned custom-domain host, carrying the same CSP plus headers a `<meta>` tag can't (`X-Frame-Options`, `Permissions-Policy`, HSTS) — inert until that migration, per the governing prompt's own framing of this item.
 
 **New in Groups G/H, not in the original audit:**
-- **Real age-gating.** `dateOfBirth` was previously only checked against the future, never against a minimum age — three separate client-side forms (`Register.tsx`, `ProfileSettings.tsx`, `ProfileSetup.tsx`) each had their own copy-pasted, inconsistent, imprecise (`today.getFullYear() - birthDate.getFullYear()`, no month/day awareness) `age < 13` check, and the **server enforced no minimum age at all**. Raised to the repo owner and confirmed: minimum age is 8, enforced server-side (`backend/services/agePolicy.js`, wired into `register` and `updateProfile`) as the actual control, with the same month/day-aware logic duplicated client-side (`frontend/src/lib/agePolicy.ts`) purely for UX (instant feedback before a round trip). `profile.location` is kept as-is — confirmed with the repo owner it's reserved for a planned feature (user-controlled location services surfaced in the recording UI), not dead schema. When that feature is built, it needs its own privacy review (continuous location is more sensitive than a one-time profile field) — noted here so it isn't missed.
+- **Real age-gating.** `dateOfBirth` was previously only checked against the future, never against a minimum age — three separate client-side forms (`Register.tsx`, `ProfileSettings.tsx`, `ProfileSetup.tsx`) each had their own copy-pasted, inconsistent, imprecise (`today.getFullYear() - birthDate.getFullYear()`, no month/day awareness) `age < 13` check, and the **server enforced no minimum age at all**. Raised to the repo owner and confirmed: minimum age 8 at first, raised to **13** with the Terms/Privacy work (`024f5bb`), enforced server-side (`backend/services/agePolicy.js`, wired into `register` and `updateProfile`) as the actual control, with the same month/day-aware logic duplicated client-side (`frontend/src/lib/agePolicy.ts`) purely for UX (instant feedback before a round trip). `profile.location` is kept as-is — confirmed with the repo owner it's reserved for a planned feature (user-controlled location services surfaced in the recording UI), not dead schema. When that feature is built, it needs its own privacy review (continuous location is more sensitive than a one-time profile field) — noted here so it isn't missed.
 - **Account deletion** (closes SEC-19): `DELETE /api/auth/account`, gated behind re-authentication (current password for local accounts, a fresh Google credential checked against the account's `googleId` for Google accounts) plus a dedicated per-account rate limiter. Backed by an idempotent cascade-delete service (`backend/services/accountDeletion.js`) that removes the user's videos, S3 objects, refresh tokens, action tokens, and per-user counter before deleting the `User` document itself — continues past an individual S3 delete failure (reports `failedS3Keys`) rather than aborting the whole deletion. Minimal frontend entry point in `ProfileSettings.tsx`'s new "Danger zone" (`DeleteAccountSection.tsx`).
 - **Security event logging**: `backend/services/securityLog.js` writes one structured JSON line per event (`login_success`, `login_failure`, `password_change`, `google_link_success`, `google_link_blocked_unverified`, `refresh_token_reuse`, `account_deleted`) to stdout, redacting passwords/tokens/jwk/iv and masking emails (`j***@example.com`) rather than logging them in full. Deliberately not persisted to a database yet — it's the substrate Phase 3's `AuditLog` model is meant to build on (§6.2), not a replacement for it.
 - **Dependency currency** (SEC-16's follow-through): backend is now at **0 `npm audit` findings** (was 3 — jws/jsonwebtoken, mongoose, source-map-js, all closing SEC-25/26/27). Frontend dropped from 33 to **25**, all now confined to a single, named, deferred migration (see SEC-28) — none reach the shipped bundle. `vite` was bumped across three majors (5→8, the "real version jump" the original SEC-28 finding called for) with the dev server, both build modes, lint, typecheck, unit tests, and the Playwright e2e smoke test all re-verified after.
@@ -240,7 +246,9 @@ The only check on registration is presence (`!password`) — a one-character pas
 **Changes user-visible behaviour?** Yes — stricter passwords required going forward.
 
 ### SEC-24 — React Router open-redirect CVEs, ships in the production bundle *(new)*
-**Status: Not reproduced (re-checked in Group H).** `npm audit` against the current frontend tree no longer lists any of these four advisories against the installed `react-router-dom@6.27.0` — re-verified directly (`npm ls react-router-dom` → `6.27.0`, unchanged; `npm audit` output has no `react-router-dom` entry at all). Either the advisory database's vulnerable-range data was corrected since the original Phase 1 draft, or the original range read was imprecise. Documented rather than silently dropped, since the original finding claimed a confirmed production-bundle exposure.
+**Status (Phase 5): Accepted risk.** The advisories are listed by `npm audit` again (Phase 4 and Phase 5 runs: `react-router`, `react-router-dom`, `@remix-run/router`, still at 6.27.0), but none is reproducible here: every `navigate()` and `<Link>` uses a literal path, so no attacker-controlled path reaches the router. Upgrading within 6.x (6.30+) is still recommended and is cheap.
+
+**Earlier status: Not reproduced (re-checked in Group H).** `npm audit` against the current frontend tree no longer lists any of these four advisories against the installed `react-router-dom@6.27.0` — re-verified directly (`npm ls react-router-dom` → `6.27.0`, unchanged; `npm audit` output has no `react-router-dom` entry at all). Either the advisory database's vulnerable-range data was corrected since the original Phase 1 draft, or the original range read was imprecise. Documented rather than silently dropped, since the original finding claimed a confirmed production-bundle exposure.
 
 **Location:** `frontend/package.json` (`react-router-dom@6.27.0`)
 
@@ -282,6 +290,8 @@ Verified locally after the change: a plain `npm ci` in the root, `backend/` and 
 ## Medium
 
 ### SEC-08 — Dead `mongodb` dependency
+**Status: Fixed (`371e56b`, dead-code pass).** `mongodb` is no longer a frontend dependency; `gitleaks` over the committed tree found no secrets (Phase 5). Credential rotation is confirmed by the owner (CLAUDE.md), not verifiable from the repo.
+
 **Location:** `frontend/package.json:58`
 
 `frontend/src/Database/MongoClient.tsx` (which held hardcoded Atlas credentials) is confirmed **deleted** from the current tree — verified via `find` and `git log`. The file-deletion part of this finding is resolved. However `"mongodb": "^6.16.0"` is **still listed** as a frontend runtime dependency with zero usages anywhere in `frontend/src` (confirmed by grep) — dead weight left over from the incident that was never pruned. Credential rotation itself can't be verified from the repo alone.
@@ -394,7 +404,7 @@ CORS allowlist includes `http://localhost:8080` and `http://localhost:3000` unco
 **Changes user-visible behaviour?** Yes — marketing copy changes.
 
 ### SEC-18 — bcrypt cost factor 10
-**Status: Resolved, no code change — superseded by the Group D password-policy revision.** The governing prompt's own password requirement was revised from "bcrypt ≥12" to "bcrypt ≥8" (see SEC-07). The existing cost factor of 10 already satisfies the current spec, so this was left as-is rather than churned to 12 for a threshold that's no longer the target. Revisit if the policy is tightened again later.
+**Status (Phase 5): Accepted risk** — cost 10 meets the current spec. **Earlier note: resolved, no code change — superseded by the Group D password-policy revision.** The governing prompt's own password requirement was revised from "bcrypt ≥12" to "bcrypt ≥8" (see SEC-07). The existing cost factor of 10 already satisfies the current spec, so this was left as-is rather than churned to 12 for a threshold that's no longer the target. Revisit if the policy is tightened again later.
 
 **Location:** `backend/models/User.js:78`
 
@@ -405,14 +415,14 @@ CORS allowlist includes `http://localhost:8080` and `http://localhost:3000` unco
 ### SEC-19 — No account deletion capability
 **Status: Fixed (Group G).** `DELETE /api/auth/account` (`backend/routes/authRoutes.js`/`authController.js`'s `deleteAccount`), gated behind re-authentication — current password for local accounts, a fresh Google credential checked against the account's `googleId` for Google accounts — plus a dedicated per-account rate limiter (`deleteAccountLimiter`, `backend/middleware/rateLimit.js`). The actual cascade-delete logic lives in `backend/services/accountDeletion.js`'s `deleteUserAccount(userId)`: removes the user's videos (DB + S3 objects, continuing past an individual S3 failure and reporting `failedS3Keys` rather than aborting), refresh tokens, action tokens, the per-user entry counter, then the `User` document itself. Idempotent by construction — a second call against an already-deleted user is a harmless no-op, which matters because Phase 3's admin deletion is meant to call this exact function rather than duplicating the logic (§6.5). Minimal frontend entry point: a "Danger zone" section in `ProfileSettings.tsx` (`frontend/src/components/DeleteAccountSection.tsx`). Tested in `backend/tests/accountDeletion.test.js` — happy path, idempotency, a mocked S3 failure mid-deletion, wrong-password/mismatched-Google-credential rejection, and session cookies actually clearing afterward.
 
-**Data minimisation, raised rather than decided unilaterally (per the governing prompt):** asked the repo owner about `dateOfBirth` and `profile.location`, both flagged in the original draft. Decision: **`dateOfBirth` stays, and now actually enforces a real minimum age** (8 years — see the new age-gating note above; previously collected but never enforced beyond a future-date check). **`profile.location` stays** — confirmed it's reserved for a planned feature (user-togglable location services shown in the recording UI), not dead schema as the original draft assumed. Flagged for whoever builds that feature: continuous/real location is more privacy-sensitive than a one-time profile field and will want its own review at that point.
+**Data minimisation, raised rather than decided unilaterally (per the governing prompt):** asked the repo owner about `dateOfBirth` and `profile.location`, both flagged in the original draft. Decision: **`dateOfBirth` stays, and now actually enforces a real minimum age** (13 years since `024f5bb`, originally 8 — see the new age-gating note above; previously collected but never enforced beyond a future-date check). **`profile.location` stays** — confirmed it's reserved for a planned feature (user-togglable location services shown in the recording UI), not dead schema as the original draft assumed. Flagged for whoever builds that feature: continuous/real location is more privacy-sensitive than a one-time profile field and will want its own review at that point.
 
 **Location:** `backend/services/accountDeletion.js`; `backend/controllers/authController.js`'s `deleteAccount`
 
-**Changes user-visible behaviour?** Yes — new deletion capability is user-visible by definition. Also: registration and profile updates now enforce a minimum age of 8 (previously unenforced).
+**Changes user-visible behaviour?** Yes — new deletion capability is user-visible by definition. Also: registration and profile updates now enforce a minimum age of 13 (previously unenforced).
 
 ### SEC-28 — Frontend dependency audit: dev-toolchain surface, with two actionable dev-server CVEs *(new)*
-**Status: Partial (Group H).** Current `npm audit` (re-run against the actual installed tree, correctly scoped — see SEC-31): **25 findings (2 low, 4 moderate, 19 high)**, down from the 33 this finding originally quoted. Confirmed again: all 25 are devDependencies, absent from the built `docs/assets/*.js` bundle.
+**Status (Phase 5): Mitigated.** Re-run 2026-10-23: 18 findings (2 low, 4 moderate, 12 high). The 12 that ship at runtime are the react-router chain (SEC-24) and `@babel/runtime`; the rest are build-time. **Earlier status: Partial (Group H).** Current `npm audit` (re-run against the actual installed tree, correctly scoped — see SEC-31): **25 findings (2 low, 4 moderate, 19 high)**, down from the 33 this finding originally quoted. Confirmed again: all 25 are devDependencies, absent from the built `docs/assets/*.js` bundle.
 
 What changed:
 - **`vite` bumped 5.4.19 → 8.3.4** — the real version jump this finding called for, closing both named dev-server CVEs ([GHSA-g4jq-h2w9-997c](https://github.com/advisories/GHSA-g4jq-h2w9-997c) and friends, [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) via vite's bundled esbuild). `@vitejs/plugin-react-swc` bumped 3.11.0 → 4.3.3 alongside it (peer requirement). Re-verified after: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build:prod`, `npm run build:dev`, a manual dev-server smoke check, and the Playwright e2e smoke test all pass.
@@ -487,6 +497,8 @@ Traced the actual blast radius if `USE_FAKE_S3` were ever accidentally set to `'
 **Changes user-visible behaviour?** No.
 
 ### SEC-30 — `.gitignore` `.env` pattern is path-specific, not a wildcard *(new)*
+**Status: Open.** Nothing is leaking today (no `.env` is tracked, and gitleaks found nothing), but it's a two-line fix that should land before the next new env file is created.
+
 **Location:** `.gitignore`
 
 Only the exact paths `/frontend/.env` and `/backend/.env` are ignored — not a blanket `**/.env*` pattern. Confirmed via `git ls-files` that no `.env` is currently tracked, so nothing is leaking today. But a future `.env.local`, `.env.production`, or a `.env` added in a new subdirectory would **not** be auto-ignored.
@@ -605,8 +617,116 @@ bcrypt ignores input past 72 bytes, so any password matching the first 72 bytes 
 An attacker registers the victim's email. The verification email goes to the victim; opening it marks the attacker's account verified (`VerifyEmail.tsx` submits on page load, no session required). The victim's later Google sign-in then links to that account, and the attacker's password opens it. **Owner decision:** accepted, with email copy telling users not to open links they didn't request. Residual risk: mail security scanners in some organisations open links automatically. Code options if revisited: require a password sign-in before linking Google to a password account, or require a click (not page load) to verify.
 
 ### Observations — reasoned from the code, not executed
-- **`NODE_ENV` on Render is unverified.** If unset, `localhost:8080`/`:3000` remain trusted origins in production (`csrf.js`). Owner: confirm `NODE_ENV=production` is set on Render.
+- **`NODE_ENV` on Render — confirmed `production` by the owner (2026-10-23)**, so localhost is not a trusted origin in production (`csrf.js`).
 - **Proxy hop count — confirmed wrong on the live deploy, fixed.** The owner's check showed `req.ip` = `10.24.63.117` (Render's internal proxy) for real traffic, so `trust proxy 1` put every user in one rate-limit bucket: one client could block login, register and reset for everyone, and Google sign-in was capped at 5 per 15 minutes in total. **Fix:** `app.set('trust proxy', 'loopback, linklocal, uniquelocal')` resolves the first public address, independent of Render's hop count and still spoof-proof. Per-IP limits were raised for shared IPs (auth 20→100 per 15 min, refresh 100→300); per-account limits are unchanged and still carry brute-force protection. `/google` no longer uses the per-account limiter (it had no email to key on). Tests: `tests/adversarial/clientIp.attack.test.js` (7 tests; all fail with `trust proxy 1`). **Follow-up:** the next deploy logged `104.22.160.49` — a Cloudflare edge address (`104.16.0.0/13`), because Render sits behind Cloudflare. `middleware/clientIp.js` now uses Cloudflare's `CF-Connecting-IP` only when the hop Render's proxy recorded is in Cloudflare's published ranges (hardcoded from cloudflare.com/ips, 2026-10-23); otherwise `req.ip` is unchanged. A client can't make its own `CF-Connecting-IP` count, and a missing header or an unlisted new Cloudflare range falls back to the edge address, never to a client-chosen one. 6 more tests in `clientIp.attack.test.js`. Residual: Render doesn't document this header path, so it rests on Cloudflare's behaviour; refresh the range list if Cloudflare changes it. **Owner:** after deploying, repeat the failed-login check; the logged `ip` should be your public IP.
 - **Concurrent `/refresh` with one token** can rotate it more than once (check and update aren't atomic). Forks stay in the same family, so reuse detection still revokes them all. Not tested.
 - **Per-account login limiting allows lockout:** 5 failed attempts from anyone block the real owner for 15 minutes. `/google` has no email before verification, so it falls back to IP at 5 per 15 minutes — tight for shared networks.
 - **A second Google identity with the same verified email re-links** an already-linked account to the new `sub`. It requires controlling that address at Google, which is the same capability a password reset requires.
+
+---
+
+## Phase 5 — Final report (2026-10-23)
+
+### Verification at `085c50c` (plus the e2e fix below)
+
+| Check | Result |
+|---|---|
+| Backend tests | 22 files, 236 passed |
+| Frontend tests / typecheck / lint / `build:prod` | 28 passed / clean / 0 errors, 5 warnings / builds |
+| Playwright smoke (register → record → upload → play → rename → delete → logout → login) | **Passed.** First run since Phase 2 (skipped in Phases 3–4 for port clashes) |
+| `npm audit` | root 0, backend 0, frontend 18 (2 low, 4 moderate, 12 high; see SEC-24, SEC-28) |
+| gitleaks over the committed tree (not history, per CLAUDE.md) | No leaks |
+
+- The smoke test failed at first. It never ticked the Terms checkbox that `024f5bb` made mandatory, so "Create Account" stayed disabled. This was a stale test, not an app bug, and is fixed in `e2e/tests/smoke.spec.ts`. **CI's e2e job has probably been red on `develop` since `024f5bb`.** This couldn't be checked from here because `gh` isn't installed.
+- Local `frontend/node_modules` was stale (vitest 4.1.11 installed against a 5.0.4 lockfile). After `npm ci`, the frontend results above are from the locked versions.
+- Doc correction: the minimum age is **13** in code (`024f5bb`), but this file and `SECURITY.md` still said 8. Both now say 13.
+
+**Not tested:** anything against real AWS, Atlas, Render or Google; the deployed site's headers and CSP; real email delivery; S3 bucket and IAM configuration. All attacks ran in-process against the in-memory database and fake S3. Phase 4 covers the attack list, but no test was run against the live deployment.
+
+### Summary of changes
+- **Auth & sessions:** httpOnly cookie sessions with a 15-minute access token and a rotating, reuse-detecting refresh token. JWTs are pinned to HS256 with `iss`/`aud`. The user is resolved per request (`tokenVersion` plus a session `sid`). Logout is real. CSRF is blocked by an Origin allowlist. Google linking requires a verified email. There is now a password policy with a HIBP check, generic auth errors, timing-safe login, and per-IP and per-account rate limits with real client-IP resolution behind Render and Cloudflare.
+- **Uploads & storage:** presigned POST straight to S3 with a size cap and a server-generated key, then a single-use finalize. AWS SDK v3. 5-minute GET URLs. Atomic entry numbers. `encVersion` on videos.
+- **API hygiene:** zod validation on every route, `sanitizeFilter`/`strictQuery`, explicit response shapes, 4xx (never 500) for bad input, fail-fast env validation and DB connection.
+- **HTTP & frontend:** helmet with explicit CSP and HSTS, an env-driven CORS allowlist, a production CSP `<meta>` tag, and the third-party script and Lovable scaffolding removed.
+- **Privacy & lifecycle:** account deletion with re-auth (cascade service), a server-enforced minimum age, honest encryption copy, Terms/Privacy pages with recorded acceptance.
+- **Admin groundwork:** `role`, an append-only `AuditLog`, `requireAdmin`, the video service layer, the bootstrap script, and the key-material invariant test. No admin routes.
+- **Tooling:** test suites (unit, adversarial, e2e), CI (tests, audit, gitleaks, CodeQL), Dependabot, and a gitleaks pre-commit hook.
+
+### User-visible behaviour changes
+- Sessions live in cookies. Everyone signs in once after the first deploy. The idle timer and logout now end the session on the server, and other devices stay signed in.
+- Passwords: 8+ characters with an uppercase letter, a digit and a symbol; at most 72 bytes; refused if they appear in a breach.
+- Email verification and password reset exist, but **emails aren't sent in production** (stubbed). Until a provider is wired in, no one can verify an email or reset a forgotten password.
+- Google sign-in refuses to merge into an unverified password account (409).
+- Minimum age is 13 at registration and on profile edits. Terms acceptance is required to use the app.
+- Rate limits can block repeated failures. 5 bad logins lock that account for 15 minutes.
+- Uploads go directly from the browser to S3 (200 MB cap by default). Playback URLs expire after 5 minutes.
+- New "Delete account" in settings. Landing and README copy no longer claim end-to-end encryption.
+
+### Environment variables (backend; validated at startup by `backend/validateEnv.js`)
+| Variable | Required | Notes |
+|---|---|---|
+| `MONGO_URI`, `GOOGLE_CLIENT_ID`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME` | yes | Pre-existing, now validated |
+| `JWT_SECRET` | yes | Now must be ≥ 32 characters; use random bytes |
+| `NODE_ENV` | `production` on Render (confirmed) | If unset, localhost stays a trusted origin |
+| `ALLOWED_ORIGINS` | no | CORS/CSRF allowlist. Falls back to `https://mkmutaki.github.io` |
+| `FRONTEND_URL` | no | Base for emailed links |
+| `COOKIE_SAME_SITE` | no | `none` today; `lax` after the custom domain |
+| `MAX_UPLOAD_BYTES` | no | Default 200 MB |
+| `EMAIL_STUB_PRINT_LINKS` | **never on Render** | Local dev only (SEC-32) |
+
+No cookie-domain variable exists, deliberately: cookies are host-only on the API host, which is correct for an `app.`/`api.` split. Frontend variables are unchanged (`VITE_API_BASE_URL`, `VITE_GOOGLE_CLIENT_ID`).
+
+### Manual steps for the owner
+1. **Render:** `NODE_ENV=production` is confirmed. Still check a fresh random `JWT_SECRET`, and that `EMAIL_STUB_PRINT_LINKS` and `USE_FAKE_S3` are unset. After deploying, repeat the failed-login check (the logged `ip` should be your public IP, SEC-05), and check the startup log for a failed `s3Key` unique-index build (SEC-34).
+2. **Push and check CI** on `develop` now that the e2e test is fixed.
+3. **AWS:** least-privilege IAM policy scoped to `videos/`. On the bucket: Block Public Access, a deny-non-TLS policy, default encryption (SSE-S3), CORS allowing POST/GET only from the app origin, and a lifecycle rule expiring abandoned uploads and incomplete multipart uploads. **Confirm the old leaked access key is deleted in IAM**, not just deactivated.
+4. **Atlas:** a database user with `readWrite` on one database (after the `blackb0x` migration; it's `test` today), an IP access list for Render's outbound IPs (or document the wider rule as accepted), and backups turned on with one restore actually tested.
+5. **Google OAuth:** authorised JavaScript origins should list only the live frontend origin(s). Add the custom domain when it lands.
+6. **Custom domain:** DNS for `app.` and `api.`, plus a host that can set headers (`frontend/vercel.json` is ready but unused). Then set `ALLOWED_ORIGINS` and `COOKIE_SAME_SITE=lax`, and remove `mkmutaki.github.io` from `PROD_ORIGINS` (closes SEC-41). Also update the Render hostname hardcoded in `frontend/src/services/api.ts` and in both CSPs (`vite.config.ts`, `vercel.json`).
+7. **Email provider:** choose one (a third-party service, so it's your call), wire it into `backend/services/email.js`, and set SPF/DKIM/DMARC. Update the Privacy Policy to name the provider first.
+8. **Vulnerability reports** go to `detrick3d@gmail.com` for now (the old `hello@blackbox.app` wasn't a real mailbox). Switch to a domain address once the custom domain and email provider exist.
+
+### Manual QA checklist (on the deployed site)
+- [ ] Register (tick Terms) → onboarding → record → upload → play → rename → delete
+- [ ] Reload a deep link (e.g. `/home`): still signed in, no 404
+- [ ] Leave a tab idle for over 15 minutes, then act: the session refreshes silently
+- [ ] Log out, then press Back or reload: the session isn't restored. A second browser stays signed in
+- [ ] Weak password and a known-breached one (e.g. `Password1!`) are refused with a clear message
+- [ ] Google: new sign-up works; sign-in to a verified account works; an unverified password account with the same email is refused
+- [ ] Under-13 date of birth is refused
+- [ ] Delete account: the wrong password is refused; the right one signs you out and the S3 objects are gone (check the bucket)
+- [ ] DevTools: nothing in `localStorage`; cookies are `HttpOnly` and `Secure`; no CSP violations in the console during Google login and playback
+- [ ] Reopen an entry after more than 5 minutes: it still plays (the app fetches a fresh URL)
+
+### Still exploitable or accepted
+1. **Database read = every video decrypted.** The server stores each video's AES key next to its S3 pointer. Anyone with database read access (the operator, Atlas, a breach, a future admin) can decrypt any recording. This is the largest accepted risk; E2EE is the remedy.
+2. **SEC-41 (High, live today):** a compromised script on any of the seven sibling GitHub Pages sites can act as a signed-in Blackbox user, including reading video keys. Closes with the custom domain.
+3. **SEC-42 (High, accepted):** an attacker pre-registers the victim's email, the victim opens the verification link, and the victim's Google sign-in then links into the attacker's account.
+4. **No clickjacking protection** while on GitHub Pages: a `<meta>` CSP can't carry `frame-ancestors`, and `X-Frame-Options` needs a header. Destructive actions need a password, which limits the impact.
+5. **SEC-10:** register reveals whether an email exists (400 vs 201). This is rate-limited.
+6. **Lockout DoS:** anyone can lock a known account out for 15 minutes with 5 bad passwords.
+7. **Abandoned uploads are never cleaned up:** a presigned upload that's never finalized stays in S3 indefinitely (up to 200 MB each, bounded by the presign rate limit) until the lifecycle rule in step 3 exists. S3 deletes that failed during account deletion are logged but never retried.
+8. **Frontend runtime advisories** (react-router, `@babel/runtime`): not reproduced, not yet upgraded.
+9. **Security events have no alerting:** they go to stdout and `AuditLog`, and nobody is notified of token reuse or a burst of failed logins.
+
+### Left out — needed in future iterations
+- **The `infra/` folder (§5.C) was never produced.** No IAM policy, bucket policy, S3 CORS, lifecycle rule or Atlas checklist exists in the repo. The step 3/4 settings above are unwritten, and S3 default encryption (§5.B) is unconfirmed.
+- **Email delivery** blocks verification, password reset, closing SEC-10 and hardening SEC-42.
+- **A header-capable host** for HSTS, `frame-ancestors`, `Permissions-Policy`, and the move away from the shared origin.
+- **Background jobs:** abandoned-upload cleanup and a retry for orphaned S3 objects.
+- **Operations:** alerting on security events, a retention policy for logs and `AuditLog` (it keeps IPs indefinitely), and a tested backup restore.
+- **Admin prerequisites** from the Phase 3 list above: a suspension field, admin-safe views, MFA and step-up auth for admins, and an audit read path.
+- **Quick wins:** SEC-30 (`.gitignore` wildcard), react-router 6.30+, and making the gitleaks pre-commit hook block rather than warn.
+- **Deferred upgrades:** Tailwind v4 (SEC-28), TypeScript `strict` mode in the frontend, and an atomic `/refresh` rotation.
+- **Legal copy must follow features:** update Terms/Privacy before wiring email, enabling backups, shipping location or E2EE, or adding analytics.
+- **A test against the deployed environment.** Everything so far ran in-process.
+
+### Recommended next steps, in order
+1. **Now (hours):** push the e2e fix and confirm CI is green; do the Render checks (step 1); fix SEC-30; bump react-router.
+2. **Infrastructure (owner):** write and apply the AWS and Atlas settings (steps 3–4), including the abandoned-upload lifecycle rule.
+3. **Email provider:** ask-first decision → wire it in → close SEC-10 by having register always answer "check your inbox".
+4. **Custom domain + header host:** closes SEC-41 and clickjacking, and enables `SameSite=Lax`.
+5. **Refactor** (roadmap step 4), planned against this audit.
+6. **Admin panel** (roadmap step 5): build on the Phase 3 foundations and the "What the admin panel still needs" list. Every admin route needs a key-material test recipe.
+7. **E2EE**, as its own project, separate from the admin and refactor track. It's the only fix for accepted risk 1. Ship it with updated landing copy and Privacy terms, using `encVersion` to tell formats apart.
+8. **Database migration to `blackb0x`:** last. Afterwards, scope the Atlas user's `readWrite` to that one database.

@@ -123,7 +123,7 @@ Even with the above accepted risk, client-side encryption still means:
 
 ## Account lifecycle: minimum age and deletion
 
-- **Minimum age is 8, enforced server-side.** `dateOfBirth` was previously
+- **Minimum age is 13, enforced server-side.** `dateOfBirth` was previously
   only checked against the future; there was no actual minimum-age gate
   anywhere, despite three separate frontend forms each having their own
   (inconsistent, imprecise) client-side `age < 13` check. The real control
@@ -224,7 +224,7 @@ the stub.
 
 ## Reporting a vulnerability
 
-Email **hello@blackbox.app** with details and, if possible, reproduction
+Email **detrick3d@gmail.com** with details and, if possible, reproduction
 steps. Please don't open a public GitHub issue for anything that isn't
 already public — the repo is public, so a vulnerability report filed as an
 issue is a disclosure.

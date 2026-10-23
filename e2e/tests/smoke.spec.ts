@@ -22,6 +22,7 @@ const register = async (page: Page, email: string) => {
 
   await page.locator('#password').fill(PASSWORD);
   await page.locator('#confirmPassword').fill(PASSWORD);
+  await page.locator('#registerTerms').click();
   await page.getByRole('button', { name: /create account/i }).click();
 
   await expect(page).toHaveURL(/\/home$/);
