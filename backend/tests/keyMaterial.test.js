@@ -102,6 +102,7 @@ describe('key material invariant across every mounted route', () => {
   const videoRoutes = require('../routes/videoRoutes');
   const authRoutes = require('../routes/authRoutes');
   const profileRoutes = require('../routes/profileRoutes');
+  const waitlistRoutes = require('../routes/waitlistRoutes');
   const googleAuthService = require('../services/googleAuth');
   const { createAgent, uniqueEmail, VALID_PASSWORD } = require('./helpers');
 
@@ -109,6 +110,7 @@ describe('key material invariant across every mounted route', () => {
     [videoRoutes, '/api/videos'],
     [authRoutes, '/api/auth'],
     [profileRoutes, '/api/profile'],
+    [waitlistRoutes, '/api/waitlist'],
   ]);
 
   // Test-only stand-ins for S3, never mounted in production (app.js gates
@@ -159,6 +161,7 @@ describe('key material invariant across every mounted route', () => {
     ['GET /api/profile', (a) => a.get('/api/profile')],
     ['PUT /api/profile/update', (a) => a.put('/api/profile/update').send({ dateOfBirth: '1990-01-01' })],
     ['POST /api/profile/onboarding', (a) => a.post('/api/profile/onboarding').send({ username: 'probe' })],
+    ['POST /api/waitlist', (a) => a.post('/api/waitlist').send({ email: uniqueEmail() })],
     ['DELETE /api/videos/:id', (a, c) => a.delete(`/api/videos/${c.videoId}`)],
     ['DELETE /api/auth/account', (a, c) => a.delete('/api/auth/account').send({ password: c.password })],
     ['POST /api/auth/logout', (a) => a.post('/api/auth/logout')],

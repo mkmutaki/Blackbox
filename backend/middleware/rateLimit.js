@@ -113,6 +113,15 @@ const deleteAccountLimiter = makeAccountLimiter({
   keyFn: userIdKey,
 });
 
+// The waitlist is public and unauthenticated, so this is the only thing
+// stopping a script filling the collection with junk addresses. A person
+// signs up once; the ceiling only leaves room for a shared IP.
+const waitlistIpLimiter = makeIpLimiter({
+  windowMs: FIFTEEN_MIN,
+  max: 20,
+  message: 'Too many sign-ups from this network, please try again later.',
+});
+
 module.exports = {
   makeIpLimiter,
   makeAccountLimiter,
@@ -124,4 +133,5 @@ module.exports = {
   finalizeIpLimiter,
   finalizeAccountLimiter,
   deleteAccountLimiter,
+  waitlistIpLimiter,
 };

@@ -7,7 +7,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "start": "node server.js",
-    "admin:bootstrap": "node scripts/bootstrapAdmin.js"
+    "admin:bootstrap": "node scripts/bootstrapAdmin.js",
+    "waitlist:export": "node scripts/exportWaitlist.js"
   },
   "keywords": [],
   "author": "",
