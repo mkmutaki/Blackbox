@@ -6,6 +6,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 // Pages
 import Index from "./pages/Index";
 import Landing from "./pages/Landing";
+import EarlyAccess from "./pages/EarlyAccess";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -35,6 +36,7 @@ const App = () => (
           <Header />
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/early-access" element={<EarlyAccess />} />
 
             {/* Protected routes */}
             <Route

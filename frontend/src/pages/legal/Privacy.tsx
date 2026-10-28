@@ -91,6 +91,11 @@ export default function Privacy() {
         <li><strong>Settings,</strong> such as how long Blackbox waits before signing you out automatically.</li>
         <li><strong>Your agreement to our terms:</strong> which version you agreed to, and when.</li>
         <li><strong>Anything you send us</strong> by email.</li>
+        <li>
+          <strong>Mobile app waitlist:</strong> if you leave your email address on our home page to hear when the mobile
+          app is ready, we keep that address and when you left it. You don&apos;t need an account for this, and it isn&apos;t
+          linked to one.
+        </li>
       </ul>
 
       <h3>Information collected automatically</h3>
@@ -134,6 +139,10 @@ export default function Privacy() {
           <strong>Contact you about your account or Blackbox itself,</strong> for example to verify your email address,
           reset your password, or tell you about changes to these documents. We don&apos;t send marketing email. Email
           delivery isn&apos;t switched on yet; until it is, we&apos;ll tell you about changes inside Blackbox.
+        </li>
+        <li>
+          <strong>Tell waitlist sign-ups the mobile app is ready:</strong> one email, sent only to addresses left on the
+          waitlist. We don&apos;t use waitlist addresses for anything else.
         </li>
         <li><strong>Comply with the law</strong> and enforce our <Link to="/terms">Terms of Service</Link>.</li>
       </ul>
@@ -231,6 +240,7 @@ export default function Privacy() {
           ],
           ['Server logs', 'Kept by our hosting providers for a limited period, under their own retention settings'],
           ['Emails you send us', 'As long as needed to handle your request'],
+          ['Mobile app waitlist addresses', 'Until we’ve emailed you that the app is ready, or sooner if you ask us to remove you'],
         ]}
       />
       <p>

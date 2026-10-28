@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
+  ArrowRight,
   ArrowUpRight,
   EyeOff,
   HeartHandshake,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { CONTACT_EMAIL, LEGAL_LINKS } from "@/lib/legal";
+import logo from "@/assets/blackbox-logo.svg";
 import styles from "./Landing.module.css";
 
 const terminalLines = [
@@ -84,20 +86,20 @@ export default function Landing() {
   return (
     <div className={styles.page}>
       <header className={styles.nav}>
-        <span className={styles.brand}>blackb0x</span>
+        <img className={styles.brand} src={logo} alt="Blackbox" />
         <div className={styles.navRight}>
           <span className={styles.beta}>Early access</span>
           <Link className={styles.outlineButton} to={appPath} target="_blank" rel="noopener noreferrer">
-            Try the beta <ArrowUpRight size={15} />
+            Try for web <ArrowUpRight size={15} />
           </Link>
         </div>
       </header>
 
       <main>
         <section className={styles.hero}>
-          <p className={styles.kicker}>A safe keep for video diaries</p>
-          <h1>One day they&apos;ll want to hear your voice.</h1>
-          <p className={styles.subtitle}>Record a minute of today. Seal it. Soon, choose who opens it, and when.</p>
+          <p className={styles.kicker}>Kept in your heart, infinitely</p>
+          <h1>One day they&apos;ll want to remember.</h1>
+          <p className={styles.subtitle}>Record a memory of today. Seal it. <br /> <span className={styles.planned}>Soon</span> Choose who opens it, and when. </p>
           <Terminal />
           <div className={styles.ctaRow}>
             <Link className={`${styles.outlineButton} ${styles.ctaButton}`} to={appPath} target="_blank" rel="noopener noreferrer">
@@ -111,11 +113,13 @@ export default function Landing() {
           <div className={styles.bannerInfo}>
             <Smartphone className={styles.bannerIcon} />
             <div>
-              <p className={styles.bannerTitle}>The mobile app is coming</p>
-              <p className={styles.bannerDescription}>iOS only — record wherever the moment happens.</p>
+              <p className={styles.bannerTitle}>The desktop & mobile app is coming</p>
+              <p className={styles.bannerDescription}>Record wherever the moment happens.</p>
             </div>
           </div>
-          <span className={styles.soon}>Soon</span>
+          <Link className={styles.bannerButton} to="/early-access">
+            Join Waitlist <ArrowRight size={15} />
+          </Link>
         </section>
 
         <section className={styles.privacy} id="privacy">
@@ -133,8 +137,11 @@ export default function Landing() {
               <p>Never scanned for ads, never used to train models, never shown to strangers. We don&apos;t watch your entries unless you ask us to or the law requires it.</p>
             </article>
             <article className={styles.privacyCard}>
-              <HeartHandshake className={styles.cardIcon} />
-              <h3>Passed on, on your terms <span className={styles.planned}>Coming soon</span></h3>
+              <div className={styles.cardIconRow}>
+                <HeartHandshake className={styles.cardIcon} />
+                <span className={`${styles.planned} ${styles.cardPlanned}`}>Coming soon</span>
+              </div>
+              <h3>Passed on, on your terms</h3>
               <p>Name who inherits an entry and the moment it should reach them. Not available yet; we&apos;re building it.</p>
             </article>
           </div>
