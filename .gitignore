@@ -33,3 +33,5 @@ playwright/.cache/
 /frontend/.env
 /backend/.env
 /backend/node_modules/
+# Security audit: kept locally, not published (lists open findings)
+/SECURITY_AUDIT.md
