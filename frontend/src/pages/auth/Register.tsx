@@ -8,13 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
-import { Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
-import { validatePasswordComposition } from '@/lib/passwordPolicy';
+import { PASSWORD_BREACHED, validatePasswordComposition } from '@/lib/passwordPolicy';
 import { MIN_AGE_YEARS, calculateAge, meetsMinimumAge } from '@/lib/agePolicy';
 import { CURRENT_TERMS_VERSION } from '@/lib/legal';
 import { TermsConsent } from '@/components/legal/TermsConsent';
-import { getErrorMessage } from '@/lib/errorMessage';
+import { getErrorCode, getErrorMessage } from '@/lib/errorMessage';
 
 type Step = 'initial' | 'name' | 'birthday' | 'email' | 'password';
 
@@ -38,6 +38,9 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // The password the server flagged as breached. The warning stays up once
+  // shown; pressing Create Account again with this same password keeps it.
+  const [breachedPassword, setBreachedPassword] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +48,8 @@ export default function Register() {
   const dobMonthRef = useRef<HTMLInputElement>(null);
   const dobDayRef = useRef<HTMLInputElement>(null);
   const dobYearRef = useRef<HTMLInputElement>(null);
+
+  const keepBreachedPassword = breachedPassword !== null && breachedPassword === password;
 
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -178,13 +183,17 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      await register(email, password, fullName.trim(), dateOfBirth, CURRENT_TERMS_VERSION);
+      await register(email, password, fullName.trim(), dateOfBirth, CURRENT_TERMS_VERSION, keepBreachedPassword);
       toast({
         title: 'Account created successfully',
         description: 'Welcome to Blackbox!',
       });
       navigate('/home');
     } catch (error) {
+      if (getErrorCode(error) === PASSWORD_BREACHED) {
+        setBreachedPassword(password);
+        return;
+      }
       setError(getErrorMessage(error, 'Registration failed. Please try again.'));
     } finally {
       setIsLoading(false);
@@ -434,12 +443,36 @@ export default function Register() {
               isMinor={Boolean(dateOfBirth) && calculateAge(new Date(dateOfBirth)) < 18}
             />
 
+            {breachedPassword !== null && (
+              <div
+                role="alert"
+                className="flex gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4 animate-in fade-in slide-in-from-bottom-1 duration-300"
+              >
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-destructive">
+                    This password has appeared in a known data breach
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {keepBreachedPassword
+                      ? 'Attackers try leaked passwords first. Choose a different one, or press Create Account Anyway to use it.'
+                      : 'Attackers try leaked passwords first. The new password will be checked when you continue.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <Button
               type="submit"
+              variant={keepBreachedPassword ? 'destructive' : 'default'}
               className="w-full"
               disabled={isLoading || !agreedToTerms}
             >
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              {isLoading
+                ? 'Creating Account...'
+                : keepBreachedPassword
+                  ? 'Create Account Anyway'
+                  : 'Create Account'}
             </Button>
           </form>
         )}

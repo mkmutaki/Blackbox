@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/components/ui/use-toast';
+import { ShieldAlert } from 'lucide-react';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { post } from '@/services/api';
-import { validatePasswordComposition } from '@/lib/passwordPolicy';
-import { getErrorMessage } from '@/lib/errorMessage';
+import { PASSWORD_BREACHED, validatePasswordComposition } from '@/lib/passwordPolicy';
+import { getErrorCode, getErrorMessage } from '@/lib/errorMessage';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -16,8 +17,13 @@ export default function ResetPassword() {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // The password the server flagged as breached. The warning stays up once
+  // shown; pressing Reset password again with this same password keeps it.
+  const [breachedPassword, setBreachedPassword] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const keepBreachedPassword = breachedPassword !== null && breachedPassword === password;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -41,13 +47,17 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     try {
-      await post('/auth/reset-password', { token, password });
+      await post('/auth/reset-password', { token, password, acceptBreachedPassword: keepBreachedPassword });
       toast({
         title: 'Password reset',
         description: 'Please sign in with your new password.',
       });
       navigate('/login');
     } catch (err) {
+      if (getErrorCode(err) === PASSWORD_BREACHED) {
+        setBreachedPassword(password);
+        return;
+      }
       setError(getErrorMessage(err, 'This reset link is invalid or has expired.'));
     } finally {
       setIsLoading(false);
@@ -103,8 +113,37 @@ export default function ResetPassword() {
               className="font-mono"
               blockPaste
             />
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Resetting…' : 'Reset password'}
+
+            {breachedPassword !== null && (
+              <div
+                role="alert"
+                className="flex gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4 animate-in fade-in slide-in-from-bottom-1 duration-300"
+              >
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-destructive">
+                    This password has appeared in a known data breach
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {keepBreachedPassword
+                      ? 'Attackers try leaked passwords first. Choose a different one, or press Reset Password Anyway to use it.'
+                      : 'Attackers try leaked passwords first. The new password will be checked when you continue.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              variant={keepBreachedPassword ? 'destructive' : 'default'}
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading
+                ? 'Resetting…'
+                : keepBreachedPassword
+                  ? 'Reset Password Anyway'
+                  : 'Reset password'}
             </Button>
           </form>
         )}

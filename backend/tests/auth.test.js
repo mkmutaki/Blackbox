@@ -100,6 +100,19 @@ describe('POST /api/auth/register', () => {
       email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01', acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     expect(res.status).toBe(400);
+    expect(res.body.code).toBe('PASSWORD_BREACHED');
+  });
+
+  it('accepts a breached password when the user chose to keep it', async () => {
+    hibpService.isPasswordBreached.mockResolvedValue(true);
+
+    const agent = createAgent();
+    const res = await agent.post('/api/auth/register').send({
+      email: uniqueEmail(), password: VALID_PASSWORD, fullName: 'X', dateOfBirth: '1990-01-01',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION, acceptBreachedPassword: true,
+    });
+    hibpService.isPasswordBreached.mockResolvedValue(false);
+    expect(res.status).toBe(201);
   });
 
   it('starts with emailVerified false for a local account', async () => {

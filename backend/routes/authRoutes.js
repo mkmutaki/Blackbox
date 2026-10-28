@@ -40,6 +40,7 @@ const registerSchema = z.object({
   fullName: z.string().trim().min(1).max(100),
   dateOfBirth: dateOfBirthSchema,
   acceptedTermsVersion: termsVersionSchema,
+  acceptBreachedPassword: z.boolean().optional(),
 });
 
 const loginSchema = z.object({
@@ -70,6 +71,7 @@ const verifyEmailSchema = z.object({
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: passwordInputSchema,
+  acceptBreachedPassword: z.boolean().optional(),
 });
 
 // Exactly one of these is actually required, depending on the account's

@@ -38,7 +38,7 @@ type AuthContextType = {
   isLoading: boolean;
   isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (email: string, password: string, fullName: string, dateOfBirth: string, acceptedTermsVersion: string) => Promise<void>;
+  register: (email: string, password: string, fullName: string, dateOfBirth: string, acceptedTermsVersion: string, acceptBreachedPassword?: boolean) => Promise<void>;
   loginWithGoogle: (credential: string, signup?: GoogleSignupDetails) => Promise<void>;
   acceptTerms: (acceptedTermsVersion: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Register user
-  const register = async (email: string, password: string, fullName: string, dateOfBirth: string, acceptedTermsVersion: string) => {
+  const register = async (email: string, password: string, fullName: string, dateOfBirth: string, acceptedTermsVersion: string, acceptBreachedPassword = false) => {
     setIsLoading(true);
     setError(null);
 
@@ -100,7 +100,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         password,
         fullName,
         dateOfBirth,
-        acceptedTermsVersion
+        acceptedTermsVersion,
+        acceptBreachedPassword
       });
 
       setUser(res.data.user);

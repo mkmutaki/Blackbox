@@ -21,9 +21,16 @@ const COMPOSITION_RULES = [
   { test: /[^A-Za-z0-9]/, message: 'must contain at least one special character' },
 ];
 
+// Machine-readable code sent alongside the breach error, so the sign-up
+// and reset forms can offer to continue anyway instead of just showing it.
+const PASSWORD_BREACHED = 'PASSWORD_BREACHED';
+const BREACHED_PASSWORD_ERROR = 'This password has appeared in a known data breach — please choose a different one';
+
 // Returns a single user-facing error string, or null if the password is
 // acceptable. Does the cheap composition checks before the network call.
-const validatePassword = async (password) => {
+// allowBreached skips the HIBP lookup — only for a user who has already
+// been warned and chosen to keep the password.
+const validatePassword = async (password, { allowBreached = false } = {}) => {
   if (typeof password !== 'string' || password.length < MIN_LENGTH) {
     return `Password must be at least ${MIN_LENGTH} characters`;
   }
@@ -38,11 +45,11 @@ const validatePassword = async (password) => {
     }
   }
 
-  if (await hibpService.isPasswordBreached(password)) {
-    return 'This password has appeared in a known data breach — please choose a different one';
+  if (!allowBreached && (await hibpService.isPasswordBreached(password))) {
+    return BREACHED_PASSWORD_ERROR;
   }
 
   return null;
 };
 
-module.exports = { validatePassword, MIN_LENGTH, MAX_BYTES };
+module.exports = { validatePassword, PASSWORD_BREACHED, BREACHED_PASSWORD_ERROR, MIN_LENGTH, MAX_BYTES };

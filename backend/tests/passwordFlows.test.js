@@ -1,5 +1,5 @@
 const request = require('supertest');
-const { app, registerUser, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, createAgent, User } = require('./helpers');
+const { app, registerUser, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, createAgent, User, hibpService } = require('./helpers');
 const emailService = require('../services/email');
 
 describe('POST /api/auth/verify-email', () => {
@@ -115,6 +115,35 @@ describe('POST /api/auth/reset-password', () => {
     const agent = createAgent();
     const res = await agent.post('/api/auth/reset-password').send({ token: rawToken, password: 'weak' });
     expect(res.status).toBe(400);
+  });
+
+  it('warns about a breached new password without using up the reset link', async () => {
+    const { email } = await createUserAndAgent();
+    const rawToken = await resetToken(email);
+    hibpService.isPasswordBreached.mockResolvedValueOnce(true);
+
+    const agent = createAgent();
+    const warned = await agent.post('/api/auth/reset-password').send({ token: rawToken, password: 'N3w!Password' });
+    expect(warned.status).toBe(400);
+    expect(warned.body.code).toBe('PASSWORD_BREACHED');
+
+    // The same link still works for a different password.
+    const retry = await agent.post('/api/auth/reset-password').send({ token: rawToken, password: 'An0ther!Password' });
+    expect(retry.status).toBe(200);
+  });
+
+  it('accepts a breached new password when the user chose to keep it', async () => {
+    const { email } = await createUserAndAgent();
+    const rawToken = await resetToken(email);
+    hibpService.isPasswordBreached.mockResolvedValue(true);
+
+    const agent = createAgent();
+    const res = await agent.post('/api/auth/reset-password').send({ token: rawToken, password: 'N3w!Password', acceptBreachedPassword: true });
+    hibpService.isPasswordBreached.mockResolvedValue(false);
+    expect(res.status).toBe(200);
+
+    const loginRes = await createAgent().post('/api/auth/login').send({ email, password: 'N3w!Password' });
+    expect(loginRes.status).toBe(200);
   });
 
   it('rejects an already-used reset token', async () => {

@@ -6,6 +6,9 @@ export const PASSWORD_MIN_LENGTH = 8;
 // bcrypt ignores everything past 72 bytes (UTF-8), so the backend refuses
 // longer passwords outright.
 export const PASSWORD_MAX_BYTES = 72;
+// Error code the backend sends with a breached-password rejection at
+// sign-up or reset; resubmitting with acceptBreachedPassword keeps it.
+export const PASSWORD_BREACHED = 'PASSWORD_BREACHED';
 
 export const validatePasswordComposition = (password: string): string | null => {
   if (password.length < PASSWORD_MIN_LENGTH) {

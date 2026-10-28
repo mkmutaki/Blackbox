@@ -5,7 +5,7 @@ const ActionToken = require('../models/ActionToken');
 const googleAuthService = require('../services/googleAuth');
 const { signAccessToken, verifyAccessToken } = require('../services/jwt');
 const { generateRawToken, hashToken } = require('../services/tokens');
-const { validatePassword } = require('../services/passwordPolicy');
+const { validatePassword, PASSWORD_BREACHED, BREACHED_PASSWORD_ERROR } = require('../services/passwordPolicy');
 const { meetsMinimumAge, MIN_AGE_YEARS } = require('../services/agePolicy');
 const { deleteUserAccount } = require('../services/accountDeletion');
 const {
@@ -107,7 +107,7 @@ const register = async (req, res) => {
     // Presence, type and length are already enforced by the registerSchema
     // validate() middleware in authRoutes.js — only date-of-birth semantics
     // and password composition need checking here.
-    const { email, password, fullName, dateOfBirth, acceptedTermsVersion } = req.body;
+    const { email, password, fullName, dateOfBirth, acceptedTermsVersion, acceptBreachedPassword } = req.body;
 
     if (acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
       return res.status(400).json(TERMS_OUTDATED);
@@ -118,7 +118,12 @@ const register = async (req, res) => {
       return res.status(400).json({ error: birthDateError });
     }
 
-    const passwordError = await validatePassword(password);
+    // A breached password is a warning at sign-up, not a hard stop: the
+    // form shows it, and the user can resubmit with acceptBreachedPassword.
+    const passwordError = await validatePassword(password, { allowBreached: acceptBreachedPassword === true });
+    if (passwordError === BREACHED_PASSWORD_ERROR) {
+      return res.status(400).json({ error: passwordError, code: PASSWORD_BREACHED });
+    }
     if (passwordError) {
       return res.status(400).json({ error: passwordError });
     }
@@ -474,7 +479,7 @@ const requestPasswordReset = async (req, res) => {
 // @access  Public
 const resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const { token, password, acceptBreachedPassword } = req.body;
     if (!token || !password) {
       return res.status(400).json({ error: 'Token and new password are required' });
     }
@@ -485,7 +490,12 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired reset link' });
     }
 
-    const passwordError = await validatePassword(password);
+    // Same warning-not-refusal as register. Checked before the token is
+    // marked used, so the warning doesn't burn the reset link.
+    const passwordError = await validatePassword(password, { allowBreached: acceptBreachedPassword === true });
+    if (passwordError === BREACHED_PASSWORD_ERROR) {
+      return res.status(400).json({ error: passwordError, code: PASSWORD_BREACHED });
+    }
     if (passwordError) {
       return res.status(400).json({ error: passwordError });
     }
