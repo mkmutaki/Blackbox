@@ -36,6 +36,43 @@ const renderAtEmailStep = (register: Mock = vi.fn()) => {
   return { submitEmail, continueButton };
 };
 
+const onPasswordStep = () => screen.queryByPlaceholderText('Email address') === null;
+
+describe('Register email step', () => {
+  it('blocks a malformed address the browser would accept', () => {
+    const { submitEmail } = renderAtEmailStep();
+    submitEmail('foo@gmail');
+
+    expect(screen.getByText('Please enter a valid email address')).toBeInTheDocument();
+    expect(onPasswordStep()).toBe(false);
+  });
+
+  it('proceeds with a well-formed address', () => {
+    const { submitEmail } = renderAtEmailStep();
+    submitEmail('ada@gmail.com');
+
+    expect(onPasswordStep()).toBe(true);
+  });
+
+  it('suggests a correction for a likely typo, and applies it when clicked', () => {
+    const { submitEmail } = renderAtEmailStep();
+    submitEmail('ada@gmial.com');
+
+    expect(onPasswordStep()).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'ada@gmail.com' }));
+    expect(screen.getByPlaceholderText('Email address')).toHaveValue('ada@gmail.com');
+  });
+
+  it('lets the user keep a flagged address by pressing Continue again', () => {
+    const { submitEmail, continueButton } = renderAtEmailStep();
+    submitEmail('ada@gmial.com');
+    expect(screen.getByRole('status')).toHaveTextContent('Did you mean');
+
+    fireEvent.click(continueButton());
+    expect(onPasswordStep()).toBe(true);
+  });
+});
+
 const breachedError = () =>
   new AxiosError('Request failed', 'ERR_BAD_REQUEST', undefined, undefined, {
     status: 400,

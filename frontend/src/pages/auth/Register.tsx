@@ -11,6 +11,7 @@ import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import { Mail, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { PASSWORD_BREACHED, validatePasswordComposition } from '@/lib/passwordPolicy';
+import { suggestEmailCorrection, validateEmailFormat } from '@/lib/emailPolicy';
 import { MIN_AGE_YEARS, calculateAge, meetsMinimumAge } from '@/lib/agePolicy';
 import { CURRENT_TERMS_VERSION } from '@/lib/legal';
 import { TermsConsent } from '@/components/legal/TermsConsent';
@@ -36,6 +37,9 @@ export default function Register() {
   const [dobDay, setDobDay] = useState('');
   const [dobYear, setDobYear] = useState('');
   const [email, setEmail] = useState('');
+  // A likely-typo correction for the address currently typed. Shown once;
+  // pressing Continue again with the same address keeps it as entered.
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   // The password the server flagged as breached. The warning stays up once
@@ -147,11 +151,21 @@ export default function Register() {
     e.preventDefault();
     setError(null);
 
-    if (!email.trim()) {
-      setError('Please enter your email address');
+    const formatError = validateEmailFormat(email);
+    if (formatError) {
+      setError(formatError);
       return;
     }
 
+    if (!emailSuggestion) {
+      const suggestion = suggestEmailCorrection(email);
+      if (suggestion) {
+        setEmailSuggestion(suggestion);
+        return;
+      }
+    }
+
+    setEmailSuggestion(null);
     goTo('password');
   };
 
@@ -371,7 +385,7 @@ export default function Register() {
         )}
 
         {step === 'email' && (
-          <form className="space-y-6" onSubmit={handleEmailSubmit}>
+          <form className="space-y-6" onSubmit={handleEmailSubmit} noValidate>
             <div>
               <Label htmlFor="email" className={fieldLabelClass}>
                 Email Address
@@ -385,9 +399,28 @@ export default function Register() {
                 required
                 placeholder="Email address"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailSuggestion(null);
+                }}
                 className="font-mono"
               />
+              {emailSuggestion && (
+                <p className="mt-2 text-sm text-muted-foreground" role="status">
+                  Did you mean{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail(emailSuggestion);
+                      setEmailSuggestion(null);
+                    }}
+                    className="font-mono text-accent underline underline-offset-2 hover:opacity-80"
+                  >
+                    {emailSuggestion}
+                  </button>
+                  ? Press Continue again to keep what you entered.
+                </p>
+              )}
             </div>
 
             <Button type="submit" className="w-full">
