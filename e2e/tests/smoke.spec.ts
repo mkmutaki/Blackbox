@@ -76,7 +76,7 @@ test('register, record, upload, play, rename, delete, logout, log back in', asyn
   const recordToggle = page.getByTestId('record-toggle');
   await expect(recordToggle).toBeVisible();
   await recordToggle.click();
-  await expect(recordToggle).toHaveClass(/bg-destructive/);
+  await expect(recordToggle).toHaveAttribute('aria-label', 'Stop recording');
 
   // Let MediaRecorder capture at least a couple of chunks (it flushes every 1s).
   await page.waitForTimeout(2500);

@@ -125,7 +125,7 @@ export default function Privacy() {
           them, and we don&apos;t create biometric identifiers or templates from them.
         </li>
         <li>
-          Blackbox uses your camera and microphone only while you&apos;re recording, and only after you allow it in your
+          Blackbox uses your camera and microphone only on the recording screen, and only after you allow it in your
           browser. You can withdraw that permission in your browser settings at any time.
         </li>
       </ul>

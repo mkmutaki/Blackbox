@@ -1,6 +1,7 @@
 // frontend/src/components/LogoutTimer.tsx
 import { useLogoutTimer } from '@/hooks/useLogoutTimer';
 import { useAuth } from '@/hooks/useAuth';
+import { useRecording } from '@/context/RecordingContext';
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
@@ -30,7 +31,11 @@ export const LogoutTimer = ({
   const effectiveMinutes = savedMinutes ?? timeoutMinutes;
   const autoLockEnabled = effectiveMinutes > 0;
 
-  const { timeRemaining, formattedTime, isActive, startTimer, resetTimer } = useLogoutTimer({
+  // Index flips this when the recorder opens, so it covers the whole screen,
+  // not only an active take.
+  const { isRecording: onRecorder } = useRecording();
+
+  const { timeRemaining, formattedTime, isActive, startTimer, stopTimer, resetTimer } = useLogoutTimer({
     timeoutMinutes: effectiveMinutes,
     onTimeout: () => {
       logout();
@@ -43,12 +48,16 @@ export const LogoutTimer = ({
     }
   });
 
-  // Start timer when user logs in
+  // Start timer when user logs in. It's paused on the recording screen, where
+  // someone talking to the camera hands-free makes no "activity", and starts
+  // again from the full time once they leave it.
   useEffect(() => {
-    if (user && autoLockEnabled) {
+    if (user && autoLockEnabled && !onRecorder) {
       startTimer();
+    } else {
+      stopTimer();
     }
-  }, [user, autoLockEnabled, startTimer]);
+  }, [user, autoLockEnabled, onRecorder, startTimer, stopTimer]);
 
   // Show warning toast when approaching timeout
   useEffect(() => {

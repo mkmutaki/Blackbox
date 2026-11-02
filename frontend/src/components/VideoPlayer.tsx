@@ -4,6 +4,8 @@ import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { decryptVideo as decryptVideoPayload } from '@/lib/videoCrypto';
+import { resolveVideoDuration } from '@/lib/videoDuration';
+import { cn } from '@/lib/utils';
 
 interface VideoPlayerProps {
   title: string;
@@ -20,6 +22,8 @@ export function VideoPlayer({ title, url, iv, jwk, open, onClose }: VideoPlayerP
   const [decryptedUrl, setDecryptedUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Hidden until the real length is known, so the scrubber is right from the start.
+  const [durationReady, setDurationReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   
   // Decrypt the video when the component mounts
@@ -56,6 +60,7 @@ export function VideoPlayer({ title, url, iv, jwk, open, onClose }: VideoPlayerP
         const decryptedBlob = new Blob([decryptedData], { type: 'video/webm' });
         const decryptedObjectUrl = URL.createObjectURL(decryptedBlob);
         
+        setDurationReady(false);
         setDecryptedUrl(decryptedObjectUrl);
         setIsLoading(false);
         
@@ -95,6 +100,11 @@ export function VideoPlayer({ title, url, iv, jwk, open, onClose }: VideoPlayerP
     setIsMuted(!isMuted);
   };
   
+  const handleLoadedMetadata = () => {
+    if (!videoRef.current) return;
+    resolveVideoDuration(videoRef.current).finally(() => setDurationReady(true));
+  };
+
   const handleVideoEnd = () => {
     setIsPlaying(false);
   };
@@ -147,7 +157,8 @@ export function VideoPlayer({ title, url, iv, jwk, open, onClose }: VideoPlayerP
             <video
               ref={videoRef}
               src={decryptedUrl}
-              className="w-full rounded-md"
+              className={cn("w-full rounded-md transition-opacity", durationReady ? "opacity-100" : "opacity-0")}
+              onLoadedMetadata={handleLoadedMetadata}
               onEnded={handleVideoEnd}
               onPlay={handlePlayEvent}
               onPause={handlePauseEvent}
