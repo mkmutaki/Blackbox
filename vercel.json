@@ -1,0 +1,56 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "comment": "One Vercel project serves the static landing at / and the React app at /try-web (assembled by the root build:site script). The /try-web CSP duplicates the <meta> tag frontend/vite.config.ts bakes into the production build (see injectProductionCSP) — keep both in sync if either changes. Headers a <meta> tag cannot carry (X-Frame-Options, Permissions-Policy, HSTS, frame-ancestors) live only here.",
+  "installCommand": "cd frontend && npm ci",
+  "buildCommand": "npm run build:site",
+  "outputDirectory": "site-dist",
+  "rewrites": [
+    { "source": "/try-web", "destination": "/try-web/index.html" },
+    { "source": "/try-web/:path*", "destination": "/try-web/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(self), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        }
+      ]
+    },
+    {
+      "source": "/((?!try-web).*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com https://unpkg.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/try-web(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com https://api.blackb0x.app https://*.amazonaws.com; media-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        }
+      ]
+    }
+  ]
+}

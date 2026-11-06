@@ -32,7 +32,7 @@ const App = () => (
       <RecordingProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter basename={import.meta.env.PROD ? '/Blackbox' : ''}>
+        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Header />
           <Routes>
             <Route path="/" element={<Landing />} />
