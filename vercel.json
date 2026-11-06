@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "comment": "One Vercel project serves the static landing at / and the React app at /try-web (assembled by the root build:site script). The /try-web CSP duplicates the <meta> tag frontend/vite.config.ts bakes into the production build (see injectProductionCSP) — keep both in sync if either changes. Headers a <meta> tag cannot carry (X-Frame-Options, Permissions-Policy, HSTS, frame-ancestors) live only here.",
   "installCommand": "cd frontend && npm ci",
   "buildCommand": "npm run build:site",
   "outputDirectory": "site-dist",
