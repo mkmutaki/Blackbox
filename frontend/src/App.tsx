@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 // Pages
@@ -37,6 +37,9 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/early-access" element={<EarlyAccess />} />
+            {/* The public "try the web app" link. ProtectedRoute on /home
+                sends signed-out visitors on to /login. */}
+            <Route path="/try-web" element={<Navigate to="/home" replace />} />
 
             {/* Protected routes */}
             <Route

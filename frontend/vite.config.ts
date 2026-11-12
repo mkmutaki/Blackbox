@@ -51,10 +51,9 @@ const injectProductionCSP = (mode: string): Plugin => ({
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Production is served at <domain>/try-web on Vercel (the landing owns
-  // the root — see the root build:site script). App.tsx derives the router
+  // Served from the domain root on Vercel. App.tsx derives the router
   // basename from this via import.meta.env.BASE_URL.
-  base: mode === 'production' ? '/try-web/' : '/',
+  base: '/',
   server: {
     host: "::",
     port: 8080,

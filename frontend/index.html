@@ -6,25 +6,12 @@
     <title>Black-box</title>
     <meta name="description" content="Secure journaling platform" />
     <meta name="author" content="Blackbox" />
-    <meta property="og:image" content="https://blackb0x.app/try-web/og-image.png" />
+    <meta property="og:image" content="https://blackb0x.app/og-image.png" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#09090b" />
-    <!-- GitHub Pages routing script -->
-    <script type="text/javascript">
-      (function(l) {
-        if (l.search[1] === '/' ) {
-          var decoded = l.search.slice(1).split('&').map(function(s) { 
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
-          );
-        }
-      }(window.location))
-    </script>
   </head>
 
   <body>
