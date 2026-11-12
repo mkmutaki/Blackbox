@@ -8,7 +8,6 @@
     "build": "cd frontend && npm run build",
     "build:prod": "cd frontend && npm run build:prod",
     "backend": "cd backend && node server.js",
-    "deploy": "cd frontend && npm run deploy",
     "test:backend": "cd backend && npm test",
     "test:frontend": "cd frontend && npm test",
     "test:e2e": "playwright test --config=e2e/playwright.config.ts",

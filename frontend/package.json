@@ -11,7 +11,6 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "preview": "vite preview",
-    "deploy": "npm run build:prod && rm -rf ../docs/assets && cp -R dist/. ../docs/",
     "test": "vitest run",
     "test:watch": "vitest"
   },

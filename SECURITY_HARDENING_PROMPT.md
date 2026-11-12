@@ -17,8 +17,7 @@ An honesty note that governs everything below: you cannot prove the absence of v
 **Stack**
 - `frontend/` — React 18 + TypeScript + Vite + Tailwind/shadcn, axios (`src/services/api.ts`), auth state in `src/context/AuthContext.tsx`, encryption in `src/components/VideoRecorder.tsx`, decryption in `src/components/VideoPlayer.tsx`
 - `backend/` — Express 5 (CommonJS), Mongoose/MongoDB Atlas, `aws-sdk` v2 S3, multer, jsonwebtoken, bcryptjs, google-auth-library, helmet, cors
-- `landing/` — static landing page
-- Deploy: frontend built into `docs/` → GitHub Pages (`mkmutaki.github.io/Blackbox`), backend on Render (`blackbox-2lt5.onrender.com`). **The GitHub repo is public.**
+- Deploy: frontend on Vercel (`www.blackb0x.app`, configured by the root `vercel.json`), backend on Render (`api.blackb0x.app`). **The GitHub repo is public.**
 
 **Threat model — who you are defending against**
 - An unauthenticated attacker with only the public frontend and the public API.

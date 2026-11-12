@@ -1,15 +1,15 @@
 // Centralizes the session cookies so every option (httpOnly, Secure,
 // SameSite, path, lifetime) is set in exactly one place.
 //
-// SameSite defaults to 'none' because the live deployment today is
-// genuinely cross-site — frontend on GitHub Pages, backend on Render, two
-// different sites. SameSite=None requires Secure, which is set
+// SameSite defaults to 'lax': the frontend (www.blackb0x.app) and the API
+// (api.blackb0x.app) are the same site, so the browser still sends the
+// cookies on the frontend's API calls while refusing them on requests
+// started by other sites. That's a second CSRF layer on top of the
+// Origin/Referer allowlist (middleware/csrf.js), which stays the primary
+// one. COOKIE_SAME_SITE can override it ('none' would only be needed if
+// the frontend ever moved to a different site again). Secure is set
 // unconditionally below; modern browsers treat localhost as a secure
-// context even over plain http, so this still works in local dev. CSRF
-// protection therefore comes from the Origin/Referer allowlist
-// (middleware/csrf.js), not from SameSite, until the planned custom domain
-// unifies both into one site — at that point set COOKIE_SAME_SITE=lax (or
-// strict) via env and SameSite starts pulling real CSRF weight too.
+// context even over plain http, so this still works in local dev.
 const ACCESS_TOKEN_COOKIE = 'accessToken';
 const REFRESH_TOKEN_COOKIE = 'refreshToken';
 const ACCESS_TOKEN_MAX_AGE_MS = 15 * 60 * 1000; // 15 minutes
@@ -29,8 +29,8 @@ const isTest = () => process.env.NODE_ENV === 'test';
 
 const resolvedSameSite = () => {
   if (isTest()) return 'lax';
-  const configured = (process.env.COOKIE_SAME_SITE || 'none').toLowerCase();
-  return VALID_SAME_SITE.includes(configured) ? configured : 'none';
+  const configured = (process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
+  return VALID_SAME_SITE.includes(configured) ? configured : 'lax';
 };
 
 const baseCookieOptions = () => ({

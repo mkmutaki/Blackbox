@@ -3,8 +3,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 // Vercel sends this policy as a real response header (root vercel.json).
-// This <meta> copy is a fallback for any static host that can't set
-// headers (GitHub Pages can't) — keep the two in sync. Production build
+// This <meta> copy keeps the build protected on any host that doesn't
+// send it — keep the two in sync. Production build
 // only, so local dev (Vite's own HMR client needs inline <style> injection
 // and a same-origin websocket that this policy doesn't allow for) is
 // unaffected.

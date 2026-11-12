@@ -1,6 +1,6 @@
-// CSRF defence for state-changing requests. This carries the real weight —
-// not SameSite — because the session cookie defaults to SameSite=None for
-// the current cross-site deployment (see services/cookies.js). A browser
+// CSRF defence for state-changing requests. The session cookies are also
+// SameSite=Lax (services/cookies.js), but this check stays the primary
+// layer — it doesn't depend on cookie settings or browser behaviour. A browser
 // reliably sends Origin on every fetch/XHR request that isn't a simple
 // top-level navigation, including same-origin ones, so a missing Origin
 // *and* Referer on a state-changing request is itself treated as
@@ -11,7 +11,8 @@
 // NODE_ENV can be flipped mid-test the same way middleware/rateLimit.js
 // does, and so a real deploy picks up an env change without a restart.
 const PROD_ORIGINS = [
-  'https://mkmutaki.github.io',
+  'https://www.blackb0x.app',
+  'https://blackb0x.app',
 ];
 
 const DEV_ORIGINS = [
@@ -19,10 +20,10 @@ const DEV_ORIGINS = [
   'http://localhost:3000',
 ];
 
-// ALLOWED_ORIGINS env var (comma-separated) lets the owner point this at
-// the future custom domain without a code change (SEC-15). Falls back to
-// the hardcoded GitHub Pages origin otherwise. Localhost is never included
-// in production (SEC-15), regardless of this env var.
+// ALLOWED_ORIGINS env var (comma-separated) overrides the production
+// origins without a code change (SEC-15). Falls back to the hardcoded
+// blackb0x.app origins otherwise. Localhost is never included in
+// production (SEC-15), regardless of this env var.
 const getAllowedOrigins = () => {
   const envOrigins = (process.env.ALLOWED_ORIGINS || '')
     .split(',')

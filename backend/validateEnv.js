@@ -20,9 +20,8 @@ const envSchema = z.object({
   // Where emailed verification/reset links point. Defaults to the local
   // dev frontend if unset — see services/email.js.
   FRONTEND_URL: z.string().url().optional(),
-  // 'none' (default) for the current cross-site github.io/onrender.com
-  // split; switch to 'lax' or 'strict' once the custom domain unifies both
-  // into one site. See services/cookies.js.
+  // 'lax' (default) — the frontend and API share the blackb0x.app site.
+  // See services/cookies.js.
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).optional(),
   // Comma-separated CORS/CSRF allowlist. See middleware/csrf.js.
   ALLOWED_ORIGINS: z.string().optional(),

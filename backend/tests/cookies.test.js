@@ -48,19 +48,9 @@ describe('cookie options outside the test environment', () => {
     });
   });
 
-  it('defaults SameSite to none (the live frontend/backend split is cross-site)', () => {
+  it('defaults SameSite to lax (frontend and API share the blackb0x.app site)', () => {
     withRealEnv(() => {
       delete process.env.COOKIE_SAME_SITE;
-      const res = { cookie: vi.fn() };
-      setAccessTokenCookie(res, 'token-value');
-
-      expect(res.cookie).toHaveBeenCalledWith('accessToken', 'token-value', expect.objectContaining({ sameSite: 'none' }));
-    });
-  });
-
-  it('honours COOKIE_SAME_SITE=lax once the custom domain unifies both sites', () => {
-    withRealEnv(() => {
-      process.env.COOKIE_SAME_SITE = 'lax';
       const res = { cookie: vi.fn() };
       setAccessTokenCookie(res, 'token-value');
 
@@ -68,13 +58,23 @@ describe('cookie options outside the test environment', () => {
     });
   });
 
-  it('falls back to none for a garbage COOKIE_SAME_SITE value', () => {
+  it('honours a COOKIE_SAME_SITE override', () => {
+    withRealEnv(() => {
+      process.env.COOKIE_SAME_SITE = 'none';
+      const res = { cookie: vi.fn() };
+      setAccessTokenCookie(res, 'token-value');
+
+      expect(res.cookie).toHaveBeenCalledWith('accessToken', 'token-value', expect.objectContaining({ sameSite: 'none' }));
+    });
+  });
+
+  it('falls back to lax for a garbage COOKIE_SAME_SITE value', () => {
     withRealEnv(() => {
       process.env.COOKIE_SAME_SITE = 'whatever';
       const res = { cookie: vi.fn() };
       setAccessTokenCookie(res, 'token-value');
 
-      expect(res.cookie).toHaveBeenCalledWith('accessToken', 'token-value', expect.objectContaining({ sameSite: 'none' }));
+      expect(res.cookie).toHaveBeenCalledWith('accessToken', 'token-value', expect.objectContaining({ sameSite: 'lax' }));
     });
   });
 });

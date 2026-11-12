@@ -7,12 +7,7 @@ const getApiBaseUrl = () => {
     return '/api';  // Use relative path - Vite will proxy this
   }
 
-  // Check if we're running on GitHub Pages
-  if (window.location.hostname === 'mkmutaki.github.io') {
-    return 'https://blackbox-2lt5.onrender.com/api';
-  }
-
-  // Fallback for other environments
+  // Production: set per deploy (Vercel env var)
   return import.meta.env.VITE_API_BASE_URL || '/api';
 };
 

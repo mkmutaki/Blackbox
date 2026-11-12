@@ -55,12 +55,12 @@ describe('CORS allowlist (SEC-15)', () => {
   });
 
   it('drops localhost from the allowlist when NODE_ENV=production', async () => {
-    await withEnv({ NODE_ENV: 'production', ALLOWED_ORIGINS: 'https://mkmutaki.github.io' }, async () => {
+    await withEnv({ NODE_ENV: 'production', ALLOWED_ORIGINS: 'https://www.blackb0x.app' }, async () => {
       const localhost = await request(app).get('/api/health').set('Origin', 'http://localhost:8080');
       expect(localhost.headers['access-control-allow-origin']).toBeUndefined();
 
-      const prod = await request(app).get('/api/health').set('Origin', 'https://mkmutaki.github.io');
-      expect(prod.headers['access-control-allow-origin']).toBe('https://mkmutaki.github.io');
+      const prod = await request(app).get('/api/health').set('Origin', 'https://www.blackb0x.app');
+      expect(prod.headers['access-control-allow-origin']).toBe('https://www.blackb0x.app');
     });
   });
 

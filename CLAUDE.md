@@ -4,20 +4,15 @@ A video-journal app. Users sign up (email + password, or Google), record video i
 
 - `frontend/` — React 18 + TypeScript + Vite + Tailwind/shadcn
 - `backend/` — Express 5 (CommonJS) + Mongoose + `aws-sdk` v2 S3
-- `landing/` — static landing page
-- `docs/` — **build output**, published by GitHub Pages. Generated, never edited by hand.
-
-Frontend deploys to GitHub Pages (`mkmutaki.github.io/Blackbox`), backend to Render. **The GitHub repo is public.** Default branch `main`; work happens on `develop` and `security_hardening`.
+Frontend deploys to Vercel at `www.blackb0x.app` (the bare `blackb0x.app` redirects there; the React landing is the home route, and the root `vercel.json` holds build settings, SPA rewrites and security headers). Vercel builds from `main` on every push. Backend deploys to Render at `api.blackb0x.app`. **The GitHub repo is public.** Default branch `main`; work happens on `develop` and `security_hardening`.
 
 ## Commands
 
 ```
 npm run dev       # frontend on :8080, proxies /api to :5100
 npm run backend   # express on :5100
-npm run deploy    # build + copy into docs/ for GitHub Pages
+npm test          # backend, frontend and e2e tests
 ```
-
-There is no test script yet — Phase 0 of the security hardening adds one.
 
 ## Non-negotiables
 
@@ -30,7 +25,7 @@ These are settled decisions, not preferences. Don't reopen them; if one looks wr
 5. **End-to-end encryption is deferred.** The server currently stores each video's AES key (`jwk`) next to its S3 pointer, so it *can* decrypt. Do not implement master keys, passphrases, KDFs, recovery codes or chunked formats, and do not add abstractions "in preparation" for them. Just don't make the later migration harder — e.g. keep a version field on new video records.
 6. **Security claims must match the implementation.** The landing copy currently claims "you hold the key," which is not true today. Never add or keep a security claim the code doesn't back.
 7. **Nothing secret belongs in `frontend/`.** Everything there ships to every visitor's browser. Only `VITE_*` values that are public by design (API URL, Google client ID). A database client must never appear in frontend code.
-8. **`docs/` is served publicly.** Never put infra config, notes or anything non-public there. `docs/.nojekyll` and `docs/404.html` are hand-maintained and have **no source copy** — deleting `404.html` breaks every deep link and page refresh on the live site.
+8. **Keep both frontend CSPs in sync.** The production CSP lives in the root `vercel.json` (sent as a header) and in `frontend/vite.config.ts` (baked in as a `<meta>` tag). A change to one without the other breaks the site or weakens it.
 9. **Ask first** before adding a paid or third-party service, deleting data, changing deployment config, or doing anything irreversible.
 10. **Report honestly.** Show real command output. If something can't be verified locally, say so rather than claiming it works. Don't claim an absence of vulnerabilities — describe what was tested and what wasn't.
 
@@ -38,7 +33,7 @@ These are settled decisions, not preferences. Don't reopen them; if one looks wr
 
 Work top to bottom. Each step assumes the previous one landed.
 
-1. **`docs/` cleanup** — remove orphaned bundles, make `npm run deploy` clear `docs/assets` before copying.
+1. ~~**`docs/` cleanup**~~ — obsolete: `docs/` and GitHub Pages were retired in the move to Vercel.
 2. **Dead-code deletion pass** — unreferenced files, exports and dependencies. Deletion only: no renaming, moving or restructuring.
 3. **Security hardening** — follow `SECURITY_HARDENING_PROMPT.md`. One phase per session; honour its approval gates.
 4. **Refactor** — plan written *after* the security audit exists, so it targets the real structural problems rather than code that's about to change.
@@ -46,6 +41,5 @@ Work top to bottom. Each step assumes the previous one landed.
 6. **Database migration** to `blackb0x` — last.
 
 ## Repo gotchas
-- `npm run deploy` copies `dist/` into `docs/`. It historically didn't clear the target first, which is how stale bundles accumulated there.
 - `backend/routes/videoRoutes.js` holds its route logic inline; controllers exist only for auth and profile. Splitting it out is planned, not done.
 - The backend has no startup validation of environment variables, and keeps serving after a failed database connection.

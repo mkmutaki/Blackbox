@@ -77,14 +77,13 @@ Even with the above accepted risk, client-side encryption still means:
   the database on every request instead of trusting the token's claims
   alone — a password reset, or detected token reuse, takes effect on the
   very next request.
-- **SameSite is `none` today, by necessity, not by oversight.** The live
-  frontend (GitHub Pages) and backend (Render) are different sites — a
-  `Lax`/`Strict` cookie simply wouldn't be sent cross-site at all. CSRF
-  protection instead comes from a strict Origin/Referer allowlist
-  (`backend/middleware/csrf.js`) on every state-changing request. Once the
-  planned custom domain unifies both into one site, set
-  `COOKIE_SAME_SITE=lax` (see `.env.example`) to add SameSite as a second
-  layer on top of the Origin check — don't remove the Origin check itself.
+- **Two CSRF layers.** The primary one is a strict Origin/Referer
+  allowlist (`backend/middleware/csrf.js`) on every state-changing request.
+  On top of that, the session cookies are `SameSite=Lax` by default: the
+  frontend (`www.blackb0x.app`, Vercel) and the API (`api.blackb0x.app`,
+  Render) are the same site, so the frontend's own calls still carry the
+  cookies while requests started by other sites don't. Don't remove the
+  Origin check because SameSite is there.
 - **Rate limiting** (`backend/middleware/rateLimit.js`) is per-IP and
   per-account on login, register, Google auth, password reset, and video
   presign. It's in-memory (`express-rate-limit`'s default store) — fine for
@@ -108,18 +107,17 @@ Even with the above accepted risk, client-side encryption still means:
 - **Helmet runs with an explicit, locked-down CSP** (`default-src 'none'`)
   and HSTS. The backend is a pure JSON API with no HTML of its own, so this
   has no legitimate traffic to break.
-- **The frontend carries its own CSP**, because GitHub Pages cannot set
-  response headers at all, so a backend CSP can never reach it. A
-  production-only `<meta http-equiv="Content-Security-Policy">` tag is
-  baked into the build by a Vite plugin (`frontend/vite.config.ts`'s
-  `injectProductionCSP` — dev mode is untouched, so local HMR still works).
-  It allows `self`, Google Identity Services (`accounts.google.com`), the
-  API origin, S3 (`*.amazonaws.com`, for the signed URLs `VideoPlayer`
-  fetches directly), `blob:` (decrypted video playback), and Google Fonts.
-  `frontend/vercel.json` carries the same policy plus headers a `<meta>`
-  tag can't express (`X-Frame-Options`, `Permissions-Policy`, HSTS) for
-  the planned custom-domain host — inert on GitHub Pages, ready for when
-  that migration happens.
+- **The frontend carries its own CSP**, separate from the backend's. Vercel
+  sends it as a response header from the root `vercel.json`, together with
+  headers a `<meta>` tag can't express (`X-Frame-Options`,
+  `Permissions-Policy`, HSTS, `frame-ancestors`). The same policy is also
+  baked into the production build as a `<meta http-equiv>` tag by a Vite
+  plugin (`frontend/vite.config.ts`'s `injectProductionCSP` — dev mode is
+  untouched, so local HMR still works); keep the two in sync. It allows
+  `self`, Google Identity Services (`accounts.google.com`), the API origin
+  (`api.blackb0x.app`), S3 (`*.amazonaws.com`, for the signed URLs
+  `VideoPlayer` fetches directly), `blob:` (decrypted video playback), and
+  Google Fonts.
 
 ## Account lifecycle: minimum age and deletion
 
