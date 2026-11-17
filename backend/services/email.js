@@ -23,6 +23,10 @@ const queueVerificationEmail = (userId) => queue('verification', { kind: 'email_
 // the request does the same work whether or not one exists (SEC-10).
 const queuePasswordResetEmail = (email) => queue('password reset', { kind: 'password_reset', email });
 
+// Takes the new entry's id: the worker reads the address from it, so an
+// entry removed before the send gets nothing.
+const queueWaitlistWelcome = (waitlistEntryId) => queue('waitlist welcome', { kind: 'waitlist_welcome', waitlistEntryId });
+
 // For "send me a new link": skipped while an earlier verification email for
 // this account is still waiting to go out, so repeated clicks during an
 // outage don't stack up copies.
@@ -41,4 +45,4 @@ const resendVerificationEmail = async (userId) => {
   return queueVerificationEmail(userId);
 };
 
-module.exports = { queueVerificationEmail, queuePasswordResetEmail, resendVerificationEmail };
+module.exports = { queueVerificationEmail, queuePasswordResetEmail, queueWaitlistWelcome, resendVerificationEmail };

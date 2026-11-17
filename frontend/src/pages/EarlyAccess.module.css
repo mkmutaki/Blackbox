@@ -5,7 +5,6 @@
 
 .hero { flex: 1; display: flex; flex-direction: column; align-items: center; padding: clamp(56px, 12vw, 120px) var(--page-pad) 72px; text-align: center; }
 .icon { display: grid; place-items: center; width: 84px; height: 84px; margin-bottom: 28px; border-radius: 22px; background: linear-gradient(140deg, #0d2c28, #124b42); box-shadow: 0 0 0 1px rgb(127 255 224 / 18%), 0 16px 40px rgb(0 0 0 / .55); color: #7fffe0; }
-.kicker { margin: 0 0 18px; color: #71717a; font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; }
 .hero h1 { max-width: 18ch; margin: 0 0 18px; font-size: clamp(34px, 7vw, 60px); font-weight: 500; letter-spacing: -.03em; line-height: 1.04; text-wrap: balance; }
 .subtitle { max-width: 46ch; margin: 0 0 34px; color: color-mix(in srgb, var(--text) 60%, transparent); font-size: 17px; line-height: 1.6; }
 

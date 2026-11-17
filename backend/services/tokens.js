@@ -17,4 +17,17 @@ const hashToken = (rawToken) => crypto.createHash('sha256').update(rawToken).dig
 const deriveActionToken = (jobId) =>
   crypto.createHmac('sha256', process.env.JWT_SECRET).update(`email-action-token:v1:${jobId}`).digest('hex');
 
-module.exports = { generateRawToken, hashToken, deriveActionToken };
+// The token in a waitlist email's unsubscribe link: a signature over the
+// entry's id, so it needs no storage and every email to that entry carries
+// the same working link. Rotating JWT_SECRET invalidates links already
+// sent; the person can still email us to be removed.
+const deriveUnsubscribeToken = (entryId) =>
+  crypto.createHmac('sha256', process.env.JWT_SECRET).update(`waitlist-unsubscribe:v1:${entryId}`).digest('hex');
+
+const isValidUnsubscribeToken = (entryId, token) => {
+  const expected = Buffer.from(deriveUnsubscribeToken(entryId), 'hex');
+  const given = Buffer.from(token, 'hex');
+  return given.length === expected.length && crypto.timingSafeEqual(given, expected);
+};
+
+module.exports = { generateRawToken, hashToken, deriveActionToken, deriveUnsubscribeToken, isValidUnsubscribeToken };

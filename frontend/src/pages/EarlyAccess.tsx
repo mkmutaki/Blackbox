@@ -29,7 +29,7 @@ function WaitlistForm() {
   if (status === "joined") {
     return (
       <p className={styles.done} role="status">
-        <Check size={16} /> You&apos;re on the list. We&apos;ll email you once, when it&apos;s ready.
+        <Check size={16} /> You&apos;re on the list. Check your inbox for a confirmation.
       </p>
     );
   }
@@ -49,7 +49,7 @@ function WaitlistForm() {
           onChange={(event) => setEmail(event.target.value)}
         />
         <button className={styles.button} type="submit" disabled={status === "sending"}>
-          {status === "sending" ? "Joining…" : "Get early access"}
+          {status === "sending" ? "Joining…" : "Join waitlist"}
         </button>
       </form>
       {error && <p className={styles.error} role="alert">{error}</p>}
@@ -71,14 +71,13 @@ export default function EarlyAccess() {
         <div className={styles.icon}>
           <Smartphone size={34} />
         </div>
-        <p className={styles.kicker}>Early access</p>
         <h1>Take your black box with you.</h1>
         <p className={styles.subtitle}>
           The Blackbox mobile app is on its way. Leave your email and we&apos;ll tell you when it&apos;s ready.
         </p>
         <WaitlistForm />
         <p className={styles.note}>
-          One email, when the app is ready. Nothing else.
+          We&apos;ll email you updates about the app.
           <br />
           See our <Link to="/privacy#what-we-collect">Privacy Policy</Link>.
         </p>

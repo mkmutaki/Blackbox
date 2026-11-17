@@ -132,6 +132,14 @@ const waitlistIpLimiter = makeIpLimiter({
   message: 'Too many sign-ups from this network, please try again later.',
 });
 
+// Unsubscribing needs a valid signed link, so this only blunts a script
+// guessing at them.
+const waitlistUnsubscribeIpLimiter = makeIpLimiter({
+  windowMs: FIFTEEN_MIN,
+  max: 20,
+  message: 'Too many attempts, please try again later.',
+});
+
 module.exports = {
   makeIpLimiter,
   makeAccountLimiter,
@@ -145,4 +153,5 @@ module.exports = {
   deleteAccountLimiter,
   resendVerificationLimiter,
   waitlistIpLimiter,
+  waitlistUnsubscribeIpLimiter,
 };
