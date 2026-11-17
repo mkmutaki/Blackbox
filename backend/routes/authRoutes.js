@@ -8,6 +8,7 @@ const {
   logout,
   refresh,
   verifyEmail,
+  resendVerification,
   requestPasswordReset,
   resetPassword,
   getCurrentUser,
@@ -15,7 +16,13 @@ const {
   acceptTerms,
 } = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/authMiddleware');
-const { authIpLimiter, authAccountLimiter, refreshIpLimiter, deleteAccountLimiter } = require('../middleware/rateLimit');
+const {
+  authIpLimiter,
+  authAccountLimiter,
+  refreshIpLimiter,
+  deleteAccountLimiter,
+  resendVerificationLimiter,
+} = require('../middleware/rateLimit');
 const { validate } = require('../middleware/validate');
 
 // Pinning email to z.string().email() is the actual SEC-06 fix — an
@@ -108,6 +115,9 @@ router.post('/refresh', refreshIpLimiter, refresh);
 
 // Consume an emailed verification link
 router.post('/verify-email', validate(verifyEmailSchema), verifyEmail);
+
+// Email the signed-in user a new verification link
+router.post('/resend-verification', authMiddleware, resendVerificationLimiter, resendVerification);
 
 // Request / consume a password-reset link. request-password-reset
 // deliberately isn't run through validate() here — it has its own

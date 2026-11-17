@@ -3,8 +3,10 @@
 // account deletion — redacting tokens/passwords/jwk/full emails.
 const request = require('supertest');
 const { logSecurityEvent, maskEmail } = require('../services/securityLog');
-const { app, registerUser, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION } = require('./helpers');
-const emailService = require('../services/email');
+const {
+  app, registerUser, createUserAndAgent, createAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION,
+  deliverLinkToken,
+} = require('./helpers');
 const googleAuthService = require('../services/googleAuth');
 
 const parseCookie = (setCookieHeaders, name) => {
@@ -120,11 +122,8 @@ describe('security events wired into real auth flows', () => {
 
   it('logs password_change on a successful password reset', async () => {
     const { email } = await createUserAndAgent();
-    const sendReset = vi.spyOn(emailService, 'sendPasswordResetEmail');
-
     await createAgent().post('/api/auth/request-password-reset').send({ email });
-    const [, rawToken] = sendReset.mock.calls[0];
-    sendReset.mockRestore();
+    const rawToken = await deliverLinkToken('/reset-password');
 
     spy.mockClear();
     const res = await createAgent().post('/api/auth/reset-password').send({ token: rawToken, password: 'N3w!Password' });

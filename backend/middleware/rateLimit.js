@@ -113,6 +113,16 @@ const deleteAccountLimiter = makeAccountLimiter({
   keyFn: userIdKey,
 });
 
+// Each resend queues a real email to the account's address, and Resend's
+// daily quota is shared by every user — a few per hour is plenty for
+// someone whose email went missing.
+const resendVerificationLimiter = makeAccountLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  message: 'Too many verification emails requested. Please check your inbox and spam folder, or try again later.',
+  keyFn: userIdKey,
+});
+
 // The waitlist is public and unauthenticated, so this is the only thing
 // stopping a script filling the collection with junk addresses. A person
 // signs up once; the ceiling only leaves room for a shared IP.
@@ -133,5 +143,6 @@ module.exports = {
   finalizeIpLimiter,
   finalizeAccountLimiter,
   deleteAccountLimiter,
+  resendVerificationLimiter,
   waitlistIpLimiter,
 };

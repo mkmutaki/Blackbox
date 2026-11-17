@@ -154,6 +154,7 @@ describe('key material invariant across every mounted route', () => {
     ['POST /api/auth/google', (a) => a.post('/api/auth/google').send({ credential: 'cred', ...GOOGLE_SIGNUP })],
     ['POST /api/auth/refresh', (a) => a.post('/api/auth/refresh')],
     ['POST /api/auth/verify-email', (a) => a.post('/api/auth/verify-email').send({ token: 'bogus' })],
+    ['POST /api/auth/resend-verification', (a) => a.post('/api/auth/resend-verification')],
     ['POST /api/auth/request-password-reset', (a, c) => a.post('/api/auth/request-password-reset').send({ email: c.email })],
     ['POST /api/auth/reset-password', (a) => a.post('/api/auth/reset-password').send({ token: 'bogus', password: VALID_PASSWORD })],
     ['GET /api/auth/me', (a) => a.get('/api/auth/me')],

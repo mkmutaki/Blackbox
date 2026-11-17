@@ -6,7 +6,11 @@ const { OAuth2Client } = require('google-auth-library');
 const request = require('supertest');
 const { app, createAgent, registerUser, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION } = require('../helpers');
 const { cookieFrom, withEnv, captureConsole } = require('./attackKit');
-const emailService = require('../../services/email');
+const emailProvider = require('../../services/emailProvider');
+const { buildEmail } = require('../../services/emailTemplates');
+const { drainEmailQueue } = require('../../services/emailQueue');
+const { deriveActionToken } = require('../../services/tokens');
+const EmailJob = require('../../models/EmailJob');
 const googleAuthService = require('../../services/googleAuth');
 const { JWT_ISSUER, JWT_AUDIENCE } = require('../../services/jwt');
 
@@ -92,13 +96,15 @@ describe('SEC-33: an access token stops working the moment its session is logged
 });
 
 describe('SEC-32: the email stub never writes live links or full addresses to logs', () => {
-  const user = { email: 'victim.person@example.com' };
+  const to = 'victim.person@example.com';
+  const stubSend = (kind, rawToken) =>
+    emailProvider.sendEmail({ to, ...buildEmail(kind, rawToken), idempotencyKey: 'test' });
 
   it('prints neither the reset token nor the address by default', async () => {
     const logs = captureConsole();
     await withEnv({ EMAIL_STUB_PRINT_LINKS: undefined }, async () => {
-      await emailService.sendPasswordResetEmail(user, 'RAW-RESET-TOKEN-123');
-      await emailService.sendVerificationEmail(user, 'RAW-VERIFY-TOKEN-456');
+      await stubSend('password_reset', 'RAW-RESET-TOKEN-123');
+      await stubSend('email_verify', 'RAW-VERIFY-TOKEN-456');
     });
     logs.restore();
 
@@ -110,15 +116,13 @@ describe('SEC-32: the email stub never writes live links or full addresses to lo
 
   it('prints the link only when explicitly opted in for local development', async () => {
     const logs = captureConsole();
-    await withEnv({ EMAIL_STUB_PRINT_LINKS: 'true' }, () => emailService.sendPasswordResetEmail(user, 'RAW-RESET-TOKEN-123'));
+    await withEnv({ EMAIL_STUB_PRINT_LINKS: 'true' }, () => stubSend('password_reset', 'RAW-RESET-TOKEN-123'));
     logs.restore();
 
     expect(logs.text()).toContain('RAW-RESET-TOKEN-123');
   });
 
   it('a full register / reset / login lifecycle leaks no token, password or full email into logs', async () => {
-    const resetSpy = vi.spyOn(emailService, 'sendPasswordResetEmail');
-    const verifySpy = vi.spyOn(emailService, 'sendVerificationEmail');
     const logs = captureConsole();
 
     const { res, agent, body } = await registerUser();
@@ -126,18 +130,19 @@ describe('SEC-32: the email stub never writes live links or full addresses to lo
     await agent.post('/api/auth/login').send({ email: uniqueEmail('nobody'), password: 'Wr0ng!Password' });
     await createAgent().post('/api/auth/request-password-reset').send({ email: body.email });
     await agent.post('/api/auth/refresh');
+    // The real worker and the real stub, logging as they would on a deploy.
+    await withEnv({ EMAIL_STUB_PRINT_LINKS: undefined }, () => drainEmailQueue());
 
     logs.restore();
+    const jobs = await EmailJob.find({ status: 'sent' });
+    expect(jobs.map((job) => job.kind).sort()).toEqual(['email_verify', 'password_reset']);
     const secrets = [
       body.email,
       body.password,
       cookieFrom(res, 'accessToken'),
       cookieFrom(res, 'refreshToken'),
-      verifySpy.mock.calls[0][1],
-      resetSpy.mock.calls[0][1],
+      ...jobs.map((job) => deriveActionToken(job._id)),
     ];
-    resetSpy.mockRestore();
-    verifySpy.mockRestore();
 
     for (const secret of secrets) {
       expect(secret).toBeTruthy();

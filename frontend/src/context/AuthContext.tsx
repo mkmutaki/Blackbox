@@ -7,6 +7,7 @@ type User = {
   id: string;
   email: string;
   authProvider: 'local' | 'google';
+  emailVerified: boolean;
   createdAt: string;
   // True until the account has agreed to the current Terms + Privacy
   // Policy; the app shows TermsAcceptanceGate instead of itself meanwhile.

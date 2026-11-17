@@ -7,6 +7,10 @@ process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
 process.env.USE_FAKE_S3 = 'true';
 process.env.S3_BUCKET_NAME = 'test-bucket';
 process.env.AWS_REGION = 'us-east-1';
+// Tests must never send real email, even from a shell that has a key set:
+// with no key, services/emailProvider.js is the stub. Tests that exercise
+// the Resend path set a fake key and mock fetch.
+delete process.env.RESEND_API_KEY;
 
 let mongod;
 

@@ -1,15 +1,16 @@
 const request = require('supertest');
-const { app, registerUser, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, createAgent, User, hibpService } = require('./helpers');
-const emailService = require('../services/email');
+const {
+  app, registerUser, createUserAndAgent, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, createAgent, User, hibpService,
+  deliverEmails, deliverLinkToken,
+} = require('./helpers');
+const EmailJob = require('../models/EmailJob');
 
 describe('POST /api/auth/verify-email', () => {
   it('marks the account verified when a freshly-emailed token is consumed', async () => {
-    const sendVerification = vi.spyOn(emailService, 'sendVerificationEmail');
-
     const { res } = await registerUser();
     const email = res.body.user.email;
 
-    const [, rawToken] = sendVerification.mock.calls[0];
+    const rawToken = await deliverLinkToken('/verify-email');
     expect(rawToken).toBeTruthy();
 
     const verifyRes = await request(app).post('/api/auth/verify-email').set('Origin', TEST_ORIGIN).send({ token: rawToken });
@@ -17,22 +18,17 @@ describe('POST /api/auth/verify-email', () => {
 
     const stored = await User.findOne({ email });
     expect(stored.emailVerified).toBe(true);
-
-    sendVerification.mockRestore();
   });
 
   it('rejects an already-used token', async () => {
-    const sendVerification = vi.spyOn(emailService, 'sendVerificationEmail');
     await registerUser();
-    const [, rawToken] = sendVerification.mock.calls[0];
+    const rawToken = await deliverLinkToken('/verify-email');
 
     const first = await request(app).post('/api/auth/verify-email').set('Origin', TEST_ORIGIN).send({ token: rawToken });
     expect(first.status).toBe(200);
 
     const second = await request(app).post('/api/auth/verify-email').set('Origin', TEST_ORIGIN).send({ token: rawToken });
     expect(second.status).toBe(400);
-
-    sendVerification.mockRestore();
   });
 
   it('rejects an unknown token', async () => {
@@ -56,27 +52,48 @@ describe('POST /api/auth/request-password-reset', () => {
   });
 
   it('emails a reset link only when the account actually exists', async () => {
-    const sendReset = vi.spyOn(emailService, 'sendPasswordResetEmail');
     const { email } = await createUserAndAgent();
+    await deliverEmails(); // the verification email from registration
 
-    sendReset.mockClear(); // drop any calls from registration itself (there are none, but be explicit)
+    await createAgent().post('/api/auth/request-password-reset').send({ email });
+    await createAgent().post('/api/auth/request-password-reset').send({ email: uniqueEmail('nobody') });
 
-    const agent = createAgent();
-    await agent.post('/api/auth/request-password-reset').send({ email });
+    // Both requests queued a job: the request itself never checks whether
+    // the account exists, so it takes the same time either way.
+    expect(await EmailJob.countDocuments({ kind: 'password_reset' })).toBe(2);
 
-    expect(sendReset).toHaveBeenCalledTimes(1);
-    sendReset.mockRestore();
+    const sent = await deliverEmails();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toBe(email);
+    expect(sent[0].text).toContain('/reset-password?token=');
+
+    // The job for the unknown address is gone, address and all.
+    expect(await EmailJob.countDocuments({ kind: 'password_reset' })).toBe(1);
+    const remaining = await EmailJob.find({}).lean();
+    expect(remaining.every((job) => job.email === null)).toBe(true);
+  });
+
+  it('matches the account however the address is capitalised', async () => {
+    const { email } = await createUserAndAgent();
+    await deliverEmails();
+
+    await createAgent().post('/api/auth/request-password-reset').send({ email: `  ${email.toUpperCase()} ` });
+
+    const sent = await deliverEmails();
+    expect(sent.map((message) => message.to)).toEqual([email]);
+  });
+
+  it('queues nothing for input that is not an email address, with the same response', async () => {
+    const res = await createAgent().post('/api/auth/request-password-reset').send({ email: { $ne: null } });
+    expect(res.status).toBe(200);
+    expect(await EmailJob.countDocuments({ kind: 'password_reset' })).toBe(0);
   });
 });
 
 describe('POST /api/auth/reset-password', () => {
   const resetToken = async (email) => {
-    const sendReset = vi.spyOn(emailService, 'sendPasswordResetEmail');
-    const agent = createAgent();
-    await agent.post('/api/auth/request-password-reset').send({ email });
-    const [, rawToken] = sendReset.mock.calls[0];
-    sendReset.mockRestore();
-    return rawToken;
+    await createAgent().post('/api/auth/request-password-reset').send({ email });
+    return deliverLinkToken('/reset-password');
   };
 
   it('sets a new password, verifies the email, and logs out every existing session', async () => {

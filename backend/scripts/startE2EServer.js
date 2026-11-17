@@ -7,6 +7,8 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'e2e-test-secret-not-for-prod
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'e2e-test-google-client-id';
 process.env.S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || 'e2e-test-bucket';
 process.env.AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+// Stubbed email, whatever the shell has set: e2e runs never send real mail.
+delete process.env.RESEND_API_KEY;
 
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
