@@ -8,7 +8,8 @@
     "test:watch": "vitest",
     "start": "node server.js",
     "admin:bootstrap": "node scripts/bootstrapAdmin.js",
-    "waitlist:export": "node scripts/exportWaitlist.js"
+    "waitlist:export": "node scripts/exportWaitlist.js",
+    "email:requeue": "node scripts/requeueEmails.js"
   },
   "keywords": [],
   "author": "",

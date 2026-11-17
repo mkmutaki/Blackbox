@@ -2,7 +2,7 @@
 // §5.G, built as the reusable service §6.5 describes so a later admin
 // deletion path calls this exact function instead of duplicating S3/DB
 // cleanup logic). Removes every trace of a user: their videos (DB records
-// and S3 objects), refresh/action tokens, the per-user entry counter, and
+// and S3 objects), refresh/action tokens, queued emails, the per-user entry counter, and
 // the user document itself. AuditLog entries are deliberately kept — the
 // record that the account existed and was deleted is what they're for.
 //
@@ -13,6 +13,7 @@ const User = require('../models/User');
 const Video = require('../models/Video');
 const RefreshToken = require('../models/RefreshToken');
 const ActionToken = require('../models/ActionToken');
+const EmailJob = require('../models/EmailJob');
 const Counter = require('../models/Counter');
 const { deleteVideoObject } = require('./videoService');
 
@@ -43,6 +44,7 @@ const deleteUserAccount = async (userId) => {
   await Video.deleteMany({ ownerId: userId });
   await RefreshToken.deleteMany({ userId });
   await ActionToken.deleteMany({ userId });
+  await EmailJob.deleteMany({ userId });
   await Counter.deleteOne({ _id: `video-entry:${userId}` });
   await User.findByIdAndDelete(userId);
 

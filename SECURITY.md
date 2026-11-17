@@ -204,21 +204,38 @@ exist, or if its email isn't verified, and it writes an `admin_bootstrap`
 audit entry. Further admins are a direct database operation until the
 admin panel exists.
 
-## Known limitation: email delivery is stubbed
+## Email delivery
 
-Email verification and password reset are fully implemented end to end —
-`backend/services/email.js` is the one function every send goes through —
-but no real provider is wired in yet (the prompt that drove this asks to
-pick one before implementing; that hasn't happened). Today the stub logs
-only a masked recipient and the subject. The link itself is printed only
-when `EMAIL_STUB_PRINT_LINKS=true` is set, for local development — never
-set it on a real deploy, because a reset link in a log is enough to take
-over that account (SEC-32). **Nobody can
-self-serve either flow in production** until a provider (Resend, SES,
-SendGrid, …) is chosen and `sendEmail` is pointed at it — everything else
-(token generation, expiry, single-use enforcement, the SEC-01 Google-linking
-gate that depends on `emailVerified`) already works and is tested against
-the stub.
+Emails go out through Resend, from an outbox in MongoDB rather than from
+the request that triggers them (`backend/services/emailQueue.js`):
+
+- A request only writes an `EmailJob` and returns, so a slow or failing
+  provider can't slow down or fail sign-up or password reset. A
+  password-reset request doesn't even look the account up: the worker does,
+  so the request does identical work whether or not the account exists
+  (SEC-10).
+- The worker runs inside the API process. It claims jobs atomically (safe
+  with several instances), retries failures with exponential backoff and
+  the provider's `retry-after`, and gives up after 30 minutes for a reset
+  and 24 hours for a verification email.
+- Every attempt of a job sends the same message under the same
+  idempotency key, so a retry after a timeout can't send a second copy.
+  To make that possible without storing the raw link token, the token is
+  derived from the job id with an HMAC keyed by `JWT_SECRET`.
+  Rotating `JWT_SECRET` therefore also invalidates links already emailed.
+- Jobs hold no message content and no raw token. Finished jobs are
+  deleted after 30 days (TTL index).
+- After an outage, `npm run email:requeue` (in `backend/`) reports failed
+  emails and, with `--requeue`, puts failed verification emails back in
+  the queue. Signed-in users can also ask for a new verification link
+  (`POST /api/auth/resend-verification`, 3 per hour).
+
+With `RESEND_API_KEY` unset (local development, tests, e2e) the provider
+is a stub that logs a masked recipient and the subject. It prints the link
+itself only when `EMAIL_STUB_PRINT_LINKS=true` is set, for local
+development. Never set that on a real deploy: a reset link in a log is
+enough to take over that account (SEC-32). The test setup deletes
+`RESEND_API_KEY`, so the suite can never send real email.
 
 ## Reporting a vulnerability
 

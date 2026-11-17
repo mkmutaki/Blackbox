@@ -3,7 +3,7 @@
 // fails; the SEC id names the fix in SECURITY_AUDIT.md.
 const crypto = require('node:crypto');
 const request = require('supertest');
-const { app, createAgent, createUserAndAgent, registerUser, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION } = require('../helpers');
+const { app, createAgent, createUserAndAgent, registerUser, uniqueEmail, VALID_PASSWORD, TEST_ORIGIN, User, CURRENT_TERMS_VERSION, deliverLinkToken } = require('../helpers');
 const { presignAndUpload, finalize, cookieFrom, withEnv, captureConsole } = require('./attackKit');
 const Video = require('../../models/Video');
 const RefreshToken = require('../../models/RefreshToken');
@@ -200,12 +200,9 @@ describe('SEC-39: passwords bcrypt would silently truncate are refused', () => {
   });
 
   it('applies on password reset too', async () => {
-    const emailService = require('../../services/email');
-    const spy = vi.spyOn(emailService, 'sendPasswordResetEmail');
     const { email } = await createUserAndAgent();
     await createAgent().post('/api/auth/request-password-reset').send({ email });
-    const token = spy.mock.calls[0][1];
-    spy.mockRestore();
+    const token = await deliverLinkToken('/reset-password');
 
     const res = await createAgent().post('/api/auth/reset-password').send({ token, password: 'Aa1!' + 'x'.repeat(69) });
     expect(res.status).toBe(400);

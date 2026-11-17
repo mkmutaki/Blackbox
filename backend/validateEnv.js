@@ -27,8 +27,22 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().optional(),
   // Local dev only: print stubbed emails (including their live
   // verify/reset links) to stdout. Never set this on a real deploy — see
-  // services/email.js.
+  // services/emailProvider.js.
   EMAIL_STUB_PRINT_LINKS: z.enum(['true', 'false']).optional(),
+  // Unset: emails are stubbed. Set: they go out through Resend, which
+  // needs a sender on a verified domain and a real link target.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).optional(),
+  EMAIL_REPLY_TO: z.string().email().optional(),
+}).superRefine((env, ctx) => {
+  if (!env.RESEND_API_KEY) return;
+  // Without these, Resend rejects every send, or every link in every
+  // email points at localhost.
+  for (const key of ['EMAIL_FROM', 'FRONTEND_URL']) {
+    if (!env[key]) {
+      ctx.addIssue({ code: 'custom', path: [key], message: 'is required when RESEND_API_KEY is set' });
+    }
+  }
 });
 
 // Fails fast with the list of what's wrong — field names and constraint

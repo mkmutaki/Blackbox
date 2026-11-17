@@ -30,9 +30,6 @@ const {
   clearAuthCookies,
 } = require('../services/cookies');
 
-const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
-
 const publicUser = toSafeUser;
 
 // Error name and driver code only. Mongo/Mongoose error messages echo the
@@ -152,14 +149,9 @@ const register = async (req, res) => {
     await user.save();
     await logTermsAccepted(user, req, 'register');
 
-    const rawVerifyToken = generateRawToken();
-    await ActionToken.create({
-      tokenHash: hashToken(rawVerifyToken),
-      userId: user._id,
-      purpose: 'email_verify',
-      expiresAt: new Date(Date.now() + EMAIL_VERIFY_TTL_MS),
-    });
-    await emailService.sendVerificationEmail(user, rawVerifyToken);
+    // Queued, not sent: never throws, so an email problem can't fail a
+    // registration whose account already exists.
+    await emailService.queueVerificationEmail(user._id);
 
     await issueNewSession(res, user);
 
@@ -442,30 +434,46 @@ const verifyEmail = async (req, res) => {
   }
 };
 
+// @route   POST /api/auth/resend-verification
+// @desc    Email the signed-in user a new verification link
+// @access  Private
+const resendVerification = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (user.emailVerified) {
+      return res.json({ message: 'Your email address is already verified.' });
+    }
+
+    const queued = await emailService.resendVerificationEmail(user._id);
+    if (!queued) {
+      return res.status(503).json({ error: "We couldn't send a new link right now. Please try again in a few minutes." });
+    }
+    res.json({ message: 'A new verification link is on its way.' });
+  } catch (error) {
+    logError('Resend verification error', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 // @route   POST /api/auth/request-password-reset
 // @desc    Email a password-reset link if the address has an account
 // @access  Public
 const requestPasswordReset = async (req, res) => {
   try {
-    const { email } = req.body;
     // Identical response whether or not the account exists (SEC-10).
     const genericResponse = { message: 'If an account with that email exists, a reset link has been sent.' };
 
-    if (!email || typeof email !== 'string') {
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!email.includes('@') || email.length > 254) {
       return res.json(genericResponse);
     }
 
-    const user = await User.findOne({ email });
-    if (user) {
-      const rawToken = generateRawToken();
-      await ActionToken.create({
-        tokenHash: hashToken(rawToken),
-        userId: user._id,
-        purpose: 'password_reset',
-        expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
-      });
-      await emailService.sendPasswordResetEmail(user, rawToken);
-    }
+    // No account lookup here: the email worker does it. The request does
+    // the same work, in the same time, whether or not the account exists.
+    await emailService.queuePasswordResetEmail(email);
 
     res.json(genericResponse);
   } catch (error) {
@@ -654,6 +662,7 @@ module.exports = {
   logout,
   refresh,
   verifyEmail,
+  resendVerification,
   requestPasswordReset,
   resetPassword,
   getCurrentUser,
