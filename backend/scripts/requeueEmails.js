@@ -1,16 +1,16 @@
 // Recovery after an email outage. Prints how many queued emails failed,
-// and why; with --requeue, puts failed verification emails back in the
-// queue. It never sends anything itself: the running server's email worker
+// and why; with --requeue, puts failed verification and waitlist emails
+// back in the queue. It never sends anything itself: the running server's email worker
 // picks requeued jobs up within seconds, at its normal pace.
 //
 //   npm run email:requeue              # report only
-//   npm run email:requeue -- --requeue # requeue failed verification emails
+//   npm run email:requeue -- --requeue # requeue failed verification and waitlist emails
 //
 // Connects to whatever MONGO_URI points at (backend/.env).
 const path = require('node:path');
 const mongoose = require('mongoose');
 const EmailJob = require('../models/EmailJob');
-const { requeueFailedVerificationEmails } = require('../services/emailQueue');
+const { requeueFailedEmails } = require('../services/emailQueue');
 
 const summarizeFailedEmails = () =>
   EmailJob.aggregate([
@@ -42,10 +42,10 @@ const main = async () => {
     }
 
     if (process.argv.includes('--requeue')) {
-      const requeued = await requeueFailedVerificationEmails();
-      console.log(`Requeued ${requeued} verification email(s). Password reset emails are not requeued: an old reset link isn't wanted.`);
+      const requeued = await requeueFailedEmails();
+      console.log(`Requeued ${requeued} verification and waitlist email(s). Password reset emails are not requeued: an old reset link isn't wanted.`);
     } else {
-      console.log('Report only. Run with --requeue to retry failed verification emails.');
+      console.log('Report only. Run with --requeue to retry failed verification and waitlist emails.');
     }
   } finally {
     await mongoose.disconnect();

@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 // send time (see deriveActionToken in services/tokens.js), so reading this
 // collection never hands out a usable link.
 const EmailJobSchema = new mongoose.Schema({
-  kind: { type: String, enum: ['email_verify', 'password_reset'], required: true },
+  kind: { type: String, enum: ['email_verify', 'password_reset', 'waitlist_welcome'], required: true },
   // Set for verification jobs, and for reset jobs once the worker has
   // matched the address to an account.
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -18,6 +18,9 @@ const EmailJobSchema = new mongoose.Schema({
   // work whether or not the account exists (SEC-10). Cleared once the job
   // finishes.
   email: { type: String, default: null },
+  // Waitlist welcome jobs only: the entry to write to. The address is read
+  // from it at send time rather than copied here.
+  waitlistEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'WaitlistEntry', default: null },
   status: {
     type: String,
     enum: ['pending', 'sending', 'sent', 'failed', 'cancelled'],
@@ -43,6 +46,8 @@ const EmailJobSchema = new mongoose.Schema({
 EmailJobSchema.index({ status: 1, runAt: 1 });
 EmailJobSchema.index({ status: 1, lockedUntil: 1 });
 EmailJobSchema.index({ userId: 1, kind: 1, status: 1 });
+// The waitlist daily cap counts recent sends of one kind.
+EmailJobSchema.index({ kind: 1, sentAt: -1 });
 EmailJobSchema.index({ purgeAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('EmailJob', EmailJobSchema);

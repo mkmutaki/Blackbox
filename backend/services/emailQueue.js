@@ -9,7 +9,8 @@
 //   stops that retry sending a second copy.
 // - Retryable failures back off exponentially (honouring the provider's
 //   retry-after) until the job's giveUpAt, then it's marked failed.
-//   scripts/requeueEmails.js puts failed verification emails back.
+//   scripts/requeueEmails.js puts failed verification and waitlist
+//   emails back.
 // - Finished jobs carry a purgeAt; a TTL index deletes them after that.
 //
 // Message content and the link's raw token are built here at send time,
@@ -19,6 +20,7 @@ const mongoose = require('mongoose');
 const EmailJob = require('../models/EmailJob');
 const ActionToken = require('../models/ActionToken');
 const User = require('../models/User');
+const WaitlistEntry = require('../models/WaitlistEntry');
 // Not destructured, so tests can spy on sendEmail.
 const emailProvider = require('./emailProvider');
 const { buildEmail } = require('./emailTemplates');
@@ -26,15 +28,24 @@ const { deriveActionToken, hashToken } = require('./tokens');
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 
 // linkTtlMs: how long the emailed link works, counted from the latest send
 // attempt. giveUpAfterMs: how long after the request to keep retrying —
 // a reset link that turns up hours later is useless; a verification email
-// still matters the next day.
+// still matters the next day. A waitlist welcome has no link, and can wait
+// out several days of the daily cap below.
 const KINDS = {
   email_verify: { linkTtlMs: 24 * HOUR, giveUpAfterMs: 24 * HOUR },
   password_reset: { linkTtlMs: HOUR, giveUpAfterMs: 30 * MINUTE },
+  waitlist_welcome: { giveUpAfterMs: 7 * DAY },
 };
+
+// Resend's free plan allows 100 emails a day across every kind. Waitlist
+// welcomes get at most this many in any 24 hours, so a burst of sign-ups
+// (or a bot filling in the public form) can't use up the quota that
+// verification and reset emails need.
+const WAITLIST_DAILY_CAP = 40;
 
 const LEASE_MS = MINUTE; // well past the provider call's 15s timeout
 const RETRY_BASE_MS = 30 * 1000;
@@ -43,14 +54,15 @@ const POLL_INTERVAL_MS = 10 * 1000;
 // Resend allows 10 requests/second per team; one instance stays well under
 // it, leaving room for a second instance and for anything else on the key.
 const MIN_SEND_INTERVAL_MS = 200;
-const FINISHED_RETENTION_MS = 30 * 24 * HOUR;
+const FINISHED_RETENTION_MS = 30 * DAY;
 
-const enqueueEmail = async ({ kind, userId = null, email = null }) => {
+const enqueueEmail = async ({ kind, userId = null, email = null, waitlistEntryId = null }) => {
   const now = Date.now();
   const job = await EmailJob.create({
     kind,
     userId,
     email,
+    waitlistEntryId,
     runAt: new Date(now),
     giveUpAt: new Date(now + KINDS[kind].giveUpAfterMs),
   });
@@ -99,6 +111,48 @@ const retryOrFail = async (job, code, retryAfterMs) => {
   return settle(job, { status: 'pending', runAt, lastError: code });
 };
 
+// When the next waitlist welcome may go out: null if the last 24 hours are
+// under the cap, otherwise the moment the oldest send that counts toward
+// it leaves the window. Two instances can both see room for the last slot,
+// so the cap can be passed by one or two; it's a guard, not an exact count.
+const nextWaitlistSlot = async (now) => {
+  const recent = await EmailJob.find(
+    { kind: 'waitlist_welcome', sentAt: mongoose.trusted({ $gt: new Date(now - DAY) }) },
+    { sentAt: 1 },
+  )
+    .sort({ sentAt: -1 })
+    .limit(WAITLIST_DAILY_CAP)
+    .lean();
+  return recent.length < WAITLIST_DAILY_CAP ? null : new Date(recent[recent.length - 1].sentAt.getTime() + DAY);
+};
+
+const sendWaitlistWelcome = async (job, now) => {
+  const entry = await WaitlistEntry.findById(job.waitlistEntryId);
+  if (!entry) {
+    log(job, 'waitlist entry removed, cancelled');
+    return finish(job, 'cancelled', { lastError: 'no_entry' });
+  }
+
+  const slot = await nextWaitlistSlot(now);
+  if (slot) {
+    if (slot >= job.giveUpAt) {
+      log(job, 'failed: daily_cap, giving up');
+      return finish(job, 'failed', { lastError: 'daily_cap' });
+    }
+    log(job, `deferred: daily cap reached, next slot ${slot.toISOString()}`);
+    return settle(job, { status: 'pending', runAt: slot });
+  }
+
+  const { id } = await emailProvider.sendEmail({
+    to: entry.email,
+    ...buildEmail(job.kind, entry._id),
+    idempotencyKey: `email-job-${job._id}`,
+  });
+
+  log(job, 'sent');
+  return finish(job, 'sent', { sentAt: new Date(), providerMessageId: id, lastError: null });
+};
+
 const resolveUser = (job) => (job.userId ? User.findById(job.userId) : User.findOne({ email: job.email }));
 
 const attemptSend = async (job) => {
@@ -107,6 +161,7 @@ const attemptSend = async (job) => {
     log(job, 'expired before it could be sent');
     return finish(job, 'failed', { lastError: job.lastError || 'expired' });
   }
+  if (job.kind === 'waitlist_welcome') return sendWaitlistWelcome(job, now);
 
   const user = await resolveUser(job);
   if (!user) {
@@ -215,26 +270,34 @@ function kick() {
   if (pollTimer) setImmediate(() => drainEmailQueue({ paced: true }));
 }
 
-// Puts failed verification emails back in the queue with a fresh retry
-// window. Reset emails are left alone: a stale reset link isn't wanted —
-// the person just asks for a new one. The worker re-checks each account
-// before sending, so a since-verified or deleted one is skipped then.
-const requeueFailedVerificationEmails = async () => {
+// Puts failed verification and waitlist emails back in the queue with a
+// fresh retry window. Reset emails are left alone: a stale reset link
+// isn't wanted — the person just asks for a new one. The worker re-checks
+// each account and waitlist entry before sending, so a since-verified or
+// deleted one is skipped then, and requeued welcomes still keep to the
+// daily cap.
+const REQUEUEABLE_KINDS = ['email_verify', 'waitlist_welcome'];
+
+const requeueFailedEmails = async () => {
   const now = Date.now();
-  const result = await EmailJob.updateMany(
-    { kind: 'email_verify', status: 'failed' },
-    {
-      $set: {
-        status: 'pending',
-        attempts: 0,
-        runAt: new Date(now),
-        giveUpAt: new Date(now + KINDS.email_verify.giveUpAfterMs),
-        lockedUntil: null,
-        purgeAt: null,
+  let requeued = 0;
+  for (const kind of REQUEUEABLE_KINDS) {
+    const result = await EmailJob.updateMany(
+      { kind, status: 'failed' },
+      {
+        $set: {
+          status: 'pending',
+          attempts: 0,
+          runAt: new Date(now),
+          giveUpAt: new Date(now + KINDS[kind].giveUpAfterMs),
+          lockedUntil: null,
+          purgeAt: null,
+        },
       },
-    },
-  );
-  return result.modifiedCount;
+    );
+    requeued += result.modifiedCount;
+  }
+  return requeued;
 };
 
 module.exports = {
@@ -243,7 +306,8 @@ module.exports = {
   drainEmailQueue,
   startEmailWorker,
   stopEmailWorker,
-  requeueFailedVerificationEmails,
+  requeueFailedEmails,
   KINDS,
   LEASE_MS,
+  WAITLIST_DAILY_CAP,
 };

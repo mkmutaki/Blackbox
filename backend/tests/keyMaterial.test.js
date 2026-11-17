@@ -163,6 +163,7 @@ describe('key material invariant across every mounted route', () => {
     ['PUT /api/profile/update', (a) => a.put('/api/profile/update').send({ dateOfBirth: '1990-01-01' })],
     ['POST /api/profile/onboarding', (a) => a.post('/api/profile/onboarding').send({ username: 'probe' })],
     ['POST /api/waitlist', (a) => a.post('/api/waitlist').send({ email: uniqueEmail() })],
+    ['POST /api/waitlist/unsubscribe', (a) => a.post('/api/waitlist/unsubscribe').send({ id: 'a'.repeat(24), token: 'b'.repeat(64) })],
     ['DELETE /api/videos/:id', (a, c) => a.delete(`/api/videos/${c.videoId}`)],
     ['DELETE /api/auth/account', (a, c) => a.delete('/api/auth/account').send({ password: c.password })],
     ['POST /api/auth/logout', (a) => a.post('/api/auth/logout')],

@@ -9,7 +9,7 @@ const EmailJob = require('../models/EmailJob');
 const ActionToken = require('../models/ActionToken');
 const emailProvider = require('../services/emailProvider');
 const { EmailSendError } = emailProvider;
-const { claimNextJob, drainEmailQueue, requeueFailedVerificationEmails, KINDS, LEASE_MS } = require('../services/emailQueue');
+const { claimNextJob, drainEmailQueue, requeueFailedEmails, KINDS, LEASE_MS } = require('../services/emailQueue');
 const { deriveActionToken, hashToken } = require('../services/tokens');
 const { deleteUserAccount } = require('../services/accountDeletion');
 const { summarizeFailedEmails } = require('../scripts/requeueEmails');
@@ -308,7 +308,7 @@ describe('requeueing failed emails (scripts/requeueEmails.js)', () => {
       ['password_reset', 'service_unavailable', 1],
     ]);
 
-    expect(await requeueFailedVerificationEmails()).toBe(2);
+    expect(await requeueFailedEmails()).toBe(2);
     expect(await EmailJob.countDocuments({ kind: 'email_verify', status: 'pending', attempts: 0 })).toBe(2);
     expect(await EmailJob.countDocuments({ kind: 'password_reset', status: 'failed' })).toBe(1);
 
