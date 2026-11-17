@@ -9,7 +9,7 @@
 // Bump this only for a *material* change. Every account whose recorded
 // version differs is asked to accept again before it can record anything
 // new, so a typo fix must not bump it.
-const CURRENT_TERMS_VERSION = '2026-10-21';
+const CURRENT_TERMS_VERSION = '2026-11-12';
 
 // The frontend keys its UI off these, not off the human-readable message.
 const TERMS_ACCEPTANCE_REQUIRED = 'TERMS_ACCEPTANCE_REQUIRED';

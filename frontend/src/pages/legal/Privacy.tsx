@@ -32,7 +32,7 @@ export default function Privacy() {
       <p>
         Blackbox is a private video diary. This policy explains what information Blackbox collects, why, who else
         handles it, how long it&apos;s kept, and the choices you have. It applies to the Blackbox website and web app
-        (together, &ldquo;Blackbox&rdquo;).
+        at www.blackb0x.app (together, &ldquo;Blackbox&rdquo;).
       </p>
 
       <section className={styles.summary} aria-labelledby="short-version">
@@ -137,8 +137,7 @@ export default function Privacy() {
         <li><strong>Keep Blackbox secure:</strong> prevent abuse such as password guessing, investigate security incidents, and protect your account.</li>
         <li>
           <strong>Contact you about your account or Blackbox itself,</strong> for example to verify your email address,
-          reset your password, or tell you about changes to these documents. We don&apos;t send marketing email. Email
-          delivery isn&apos;t switched on yet; until it is, we&apos;ll tell you about changes inside Blackbox.
+          reset your password, or tell you about changes to these documents. We don&apos;t send marketing email.
         </li>
         <li>
           <strong>Tell waitlist sign-ups the mobile app is ready:</strong> one email, sent only to addresses left on the
@@ -199,7 +198,12 @@ export default function Privacy() {
           ['Amazon Web Services (S3)', 'Stores your video files', 'Your video files, already encrypted. The keys are stored separately, in our database.'],
           ['MongoDB Atlas', 'Our database', 'Account details, entry details including encryption keys, and security event records'],
           ['Render', 'Runs our server', 'Every request to our server, including your IP address, and server logs'],
-          ['GitHub Pages', 'Hosts the Blackbox website', 'Your IP address and standard request details when you load the site'],
+          [
+            'Resend',
+            'Sends our emails, such as email verification and password reset links',
+            'Your email address and the emails we send you. Never your entries.',
+          ],
+          ['Vercel', 'Hosts the Blackbox website', 'Your IP address and standard request details when you load the site'],
           [
             'Google',
             'Google Sign-In (only if you use it), and the fonts our website loads',
@@ -232,7 +236,8 @@ export default function Privacy() {
             'Until you delete the entry or your account. Deleting removes the video file and its record, including its key, straight away.',
           ],
           ['Sign-in sessions', 'Up to 30 days, or until you sign out'],
-          ['Email verification and password reset links', '24 hours and 1 hour'],
+          ['Email verification and password reset links', '24 hours and 1 hour after we send them'],
+          ['Records of emails we send you (which kind of email, and when; never its content)', '30 days'],
           ['IP addresses used to limit repeated attempts', 'Up to 15 minutes, in memory only'],
           [
             'Security event records',

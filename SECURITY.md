@@ -239,7 +239,7 @@ enough to take over that account (SEC-32). The test setup deletes
 
 ## Reporting a vulnerability
 
-Email **detrick3d@gmail.com** with details and, if possible, reproduction
+Email **help@blackb0x.app** with details and, if possible, reproduction
 steps. Please don't open a public GitHub issue for anything that isn't
 already public — the repo is public, so a vulnerability report filed as an
 issue is a disclosure.

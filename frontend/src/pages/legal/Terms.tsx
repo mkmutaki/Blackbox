@@ -36,9 +36,9 @@ export default function Terms() {
     <LegalPage title="Terms of Service">
       <p>
         These terms are an agreement between you and Mike Mutaki, the developer who runs Blackbox (&ldquo;we&rdquo; or
-        &ldquo;us&rdquo;). They cover your use of the Blackbox website and web app (together, &ldquo;Blackbox&rdquo;).
-        Please read them, along with our <Link to="/privacy">Privacy Policy</Link>, which explains how we handle your
-        information.
+        &ldquo;us&rdquo;). They cover your use of the Blackbox website and web app at www.blackb0x.app (together,
+        &ldquo;Blackbox&rdquo;). Please read them, along with our <Link to="/privacy">Privacy Policy</Link>, which
+        explains how we handle your information.
       </p>
 
       <nav aria-label="Contents">
