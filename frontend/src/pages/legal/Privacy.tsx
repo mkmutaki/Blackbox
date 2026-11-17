@@ -92,8 +92,8 @@ export default function Privacy() {
         <li><strong>Your agreement to our terms:</strong> which version you agreed to, and when.</li>
         <li><strong>Anything you send us</strong> by email.</li>
         <li>
-          <strong>Mobile app waitlist:</strong> if you leave your email address on our home page to hear when the mobile
-          app is ready, we keep that address and when you left it. You don&apos;t need an account for this, and it isn&apos;t
+          <strong>Mobile app waitlist:</strong> if you leave your email address on our waitlist page to hear about the
+          mobile app, we keep that address and when you left it. You don&apos;t need an account for this, and it isn&apos;t
           linked to one.
         </li>
       </ul>
@@ -137,11 +137,13 @@ export default function Privacy() {
         <li><strong>Keep Blackbox secure:</strong> prevent abuse such as password guessing, investigate security incidents, and protect your account.</li>
         <li>
           <strong>Contact you about your account or Blackbox itself,</strong> for example to verify your email address,
-          reset your password, or tell you about changes to these documents. We don&apos;t send marketing email.
+          reset your password, or tell you about changes to these documents. We don&apos;t send marketing email to your
+          account&apos;s address.
         </li>
         <li>
-          <strong>Tell waitlist sign-ups the mobile app is ready:</strong> one email, sent only to addresses left on the
-          waitlist. We don&apos;t use waitlist addresses for anything else.
+          <strong>Email waitlist sign-ups:</strong> a confirmation when you join, then updates about the mobile app,
+          including when it&apos;s ready. These go only to addresses left on the waitlist, and we don&apos;t use waitlist
+          addresses for anything else. Every waitlist email has an unsubscribe link, which removes your address.
         </li>
         <li><strong>Comply with the law</strong> and enforce our <Link to="/terms">Terms of Service</Link>.</li>
       </ul>
@@ -200,7 +202,7 @@ export default function Privacy() {
           ['Render', 'Runs our server', 'Every request to our server, including your IP address, and server logs'],
           [
             'Resend',
-            'Sends our emails, such as email verification and password reset links',
+            'Sends our emails, such as email verification and password reset links, and waitlist emails',
             'Your email address and the emails we send you. Never your entries.',
           ],
           ['Vercel', 'Hosts the Blackbox website', 'Your IP address and standard request details when you load the site'],
@@ -245,7 +247,7 @@ export default function Privacy() {
           ],
           ['Server logs', 'Kept by our hosting providers for a limited period, under their own retention settings'],
           ['Emails you send us', 'As long as needed to handle your request'],
-          ['Mobile app waitlist addresses', 'Until we’ve emailed you that the app is ready, or sooner if you ask us to remove you'],
+          ['Mobile app waitlist addresses', 'Until you unsubscribe or ask us to remove you'],
         ]}
       />
       <p>
