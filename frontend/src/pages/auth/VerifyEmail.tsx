@@ -5,14 +5,19 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PixelGasBackground } from '@/components/PixelGasBackground';
 import { post } from '@/services/api';
 import { getErrorMessage } from '@/lib/errorMessage';
+import { useAuth } from '@/hooks/useAuth';
 
 type Status = 'verifying' | 'success' | 'error';
+type ResendStatus = 'idle' | 'sending' | 'sent' | 'error';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const { user } = useAuth();
   const [status, setStatus] = useState<Status>('verifying');
   const [error, setError] = useState<string | null>(null);
+  const [resendStatus, setResendStatus] = useState<ResendStatus>('idle');
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -37,6 +42,22 @@ export default function VerifyEmail() {
       cancelled = true;
     };
   }, [token]);
+
+  // A new link can only be sent to a signed-in account, which is the one
+  // it verifies.
+  const canResend = Boolean(user && !user.emailVerified);
+
+  const resend = async () => {
+    setResendStatus('sending');
+    try {
+      const res = await post<{ message: string }>('/auth/resend-verification');
+      setResendStatus('sent');
+      setResendMessage(res.message);
+    } catch (err: unknown) {
+      setResendStatus('error');
+      setResendMessage(getErrorMessage(err, "We couldn't send a new link. Please try again later."));
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -65,9 +86,25 @@ export default function VerifyEmail() {
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
-            <Button asChild variant="secondary" className="w-full">
-              <Link to="/login">Back to sign in</Link>
-            </Button>
+            {resendMessage && (
+              <Alert variant={resendStatus === 'error' ? 'destructive' : 'default'}>
+                <AlertDescription>{resendMessage}</AlertDescription>
+              </Alert>
+            )}
+            {canResend && resendStatus !== 'sent' && (
+              <Button className="w-full" onClick={resend} disabled={resendStatus === 'sending'}>
+                {resendStatus === 'sending' ? 'Sending…' : 'Send a new link'}
+              </Button>
+            )}
+            {user ? (
+              <Button asChild variant="secondary" className="w-full">
+                <Link to="/home">Back to Blackbox</Link>
+              </Button>
+            ) : (
+              <Button asChild variant="secondary" className="w-full">
+                <Link to="/login">Back to sign in</Link>
+              </Button>
+            )}
           </>
         )}
       </div>
