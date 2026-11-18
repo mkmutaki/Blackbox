@@ -32,6 +32,7 @@ describe('AuthContext', () => {
     vi.mocked(api.get).mockReset();
     vi.mocked(api.post).mockReset();
     vi.mocked(setUnauthorizedHandler).mockReset();
+    localStorage.clear();
   });
 
   it('has no session on first mount until /auth/me is checked — the session lives in an httpOnly cookie, not anything this code can read upfront', async () => {
@@ -161,5 +162,53 @@ describe('AuthContext', () => {
     await user.click(screen.getByText('logout'));
 
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('out'));
+  });
+
+  it('skips the /auth/me check when this browser was signed out last time, so a signed-out visitor sees no 401s', async () => {
+    localStorage.setItem('bb_session_hint', 'signed-out');
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('out'));
+    expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it('still checks /auth/me when the browser was signed in last time', async () => {
+    localStorage.setItem('bb_session_hint', 'signed-in');
+    vi.mocked(api.get).mockResolvedValue({ data: { id: '1', email: 'test@example.com', authProvider: 'local' } });
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('in'));
+    expect(api.get).toHaveBeenCalledWith('/auth/me');
+  });
+
+  it('remembers the session state as it changes through login and logout', async () => {
+    vi.mocked(api.get).mockRejectedValue({ response: { status: 401 } });
+    vi.mocked(api.post).mockResolvedValue({
+      data: { user: { id: '1', email: 'test@example.com', authProvider: 'local' } },
+    });
+
+    const user = userEvent.setup();
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(localStorage.getItem('bb_session_hint')).toBe('signed-out'));
+
+    await user.click(screen.getByText('login'));
+    await waitFor(() => expect(localStorage.getItem('bb_session_hint')).toBe('signed-in'));
+
+    await user.click(screen.getByText('logout'));
+    await waitFor(() => expect(localStorage.getItem('bb_session_hint')).toBe('signed-out'));
   });
 });

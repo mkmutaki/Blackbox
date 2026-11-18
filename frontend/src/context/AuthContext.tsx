@@ -1,6 +1,7 @@
 import { createContext, useState, useEffect, ReactNode } from 'react';
 import api, { setUnauthorizedHandler } from '../services/api';
 import { getErrorMessage } from '../lib/errorMessage';
+import { wasSignedOut, rememberSessionState } from '../lib/sessionHint';
 
 // Types
 type User = {
@@ -61,8 +62,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // The session lives in an httpOnly cookie now — there's nothing in
   // localStorage to check first. Just ask the server; it either attaches
-  // a valid cookie or it doesn't.
+  // a valid cookie or it doesn't. Skipped when this browser was signed out
+  // last time (lib/sessionHint.ts), which would only end in a 401.
   useEffect(() => {
+    if (wasSignedOut()) {
+      setIsLoading(false);
+      return;
+    }
+
     const checkLoggedIn = async () => {
       try {
         const res = await api.get('/auth/me');
@@ -78,6 +85,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     checkLoggedIn();
   }, []);
+
+  // Keep the hint in step with every way the session state settles —
+  // mount check, login, register, Google, logout, account deletion, or a
+  // failed background refresh.
+  useEffect(() => {
+    if (!isLoading) rememberSessionState(isLoggedIn);
+  }, [isLoading, isLoggedIn]);
 
   // If a background request's silent refresh attempt ultimately fails
   // (the refresh token itself is invalid/revoked), the api layer has no
